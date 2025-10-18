@@ -149,7 +149,7 @@ export default function App() {
   const globalFont = { fontFamily: "'Helvetica Neue', Arial, sans-serif" };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "linear-gradient(160deg, #0d0f17 0%, #121829 100%)", color: "#fff", overflow: "hidden", textAlign: "center", ...globalFont }}>
+    <div style={{ position: "fixed", inset: 0, background: "linear-gradient(160deg, #0d0f17 0%, #121829 100%)", color: "#fff", overflowX: "hidden", overflowY: "auto", textAlign: "center", ...globalFont }}>
       <button onPointerUp={toggleMute} aria-label={muted ? "Unmute site audio" : "Mute site audio"} title={muted ? "Unmute" : "Mute"} style={{ position: "absolute", top: 16, right: 16, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "50%", width: "min(60px, 10vw)", height: "min(60px, 10vw)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "white", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.15)", willChange: "transform, opacity", transform: "translateZ(0)", zIndex: 10, touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }} >
         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: "min(32px, 5vw)", height: "min(32px, 5vw)", display: "block", transform: "translate(3px, 1px)" }}>
           <path d="M3 9v6h4l5 4V5L7 9H3z" stroke="white" strokeWidth="1.8" fill="none" />
@@ -162,23 +162,29 @@ export default function App() {
       <audio ref={audioElRef} playsInline style={{ display: 'none' }} />
 
       <style>{`
+        /* Global typography */
         body, p, span, div, select, button, footer { font-family: 'Helvetica Neue', Arial, sans-serif; }
         select { font-size: 1rem; }
-        .tagline { white-space: nowrap; text-align: center; font-family: 'Helvetica Neue', Arial, sans-serif; }
+        .tagline { white-space: nowrap; text-align: center; }
         .header-logo { display: block; margin: 0 auto; filter: brightness(0) invert(1); }
+
+        /* Core layout (desktop/tablet default) */
+        .core { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(920px, 92vw); display: flex; flex-direction: column; align-items: center; gap: 4vh; padding: 0 1rem; }
+        .main-stack { margin-top: 1.25rem; }
+
+        /* Mobile overrides: center vertically via flexbox and allow scroll if needed */
         @media (max-width: 680px) {
+          html, body, #root { height: 100%; }
           .tagline { white-space: normal; margin-top: 2rem; }
           .header-logo { margin-bottom: 0.75rem; }
           select { font-size: 1rem; }
+          .core { position: static; transform: none; margin: 0 auto; width: min(920px, 92vw); min-height: calc(100vh - 72px); display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 10vh 1rem 88px; }
+          /* push the stack the same amount so spacing remains consistent */
           .main-stack { margin-top: 0; }
-        }
-          .header-logo { margin-bottom: 0.75rem; }
-          select { font-size: 1rem; }
-          .main-stack { margin-top: 1.25rem; }
         }
       `}</style>
 
-      <section style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(920px, 92vw)", display: "flex", flexDirection: "column", alignItems: "center", gap: "4vh", padding: "0 1rem" }}>
+      <section className="core" style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(920px, 92vw)", display: "flex", flexDirection: "column", alignItems: "center", gap: "4vh", padding: "0 1rem" }}>
         <header style={{ textAlign: "center", marginBottom: "-2vh" }}>
           <img src="Zensense_Text_Only.png" alt="ZenSense Logo" className="header-logo" style={{ width: 163, maxWidth: "40vw" }} />
           <p className="tagline" style={{ fontSize: "1rem", opacity: 0.7, marginTop: "1.25rem", letterSpacing: 0.3, maxWidth: 860, width: "92%", marginLeft: "auto", marginRight: "auto" }}>
