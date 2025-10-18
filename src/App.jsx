@@ -150,7 +150,7 @@ export default function App() {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "linear-gradient(160deg, #0d0f17 0%, #121829 100%)", color: "#fff", overflow: "hidden", textAlign: "center", ...globalFont }}>
-      <button onClick={toggleMute} aria-label={muted ? "Unmute site audio" : "Mute site audio"} title={muted ? "Unmute" : "Mute"} onTouchStart={toggleMute} style={{ position: "absolute", top: 16, right: 16, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "50%", width: "min(60px, 10vw)", height: "min(60px, 10vw)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "white", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.15)", willChange: "transform, opacity", transform: "translateZ(0)", zIndex: 10, touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }} >
+      <button onPointerUp={toggleMute} aria-label={muted ? "Unmute site audio" : "Mute site audio"} title={muted ? "Unmute" : "Mute"} style={{ position: "absolute", top: 16, right: 16, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "50%", width: "min(60px, 10vw)", height: "min(60px, 10vw)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "white", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.15)", willChange: "transform, opacity", transform: "translateZ(0)", zIndex: 10, touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }} >
         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: "min(32px, 5vw)", height: "min(32px, 5vw)", display: "block", transform: "translate(3px, 1px)" }}>
           <path d="M3 9v6h4l5 4V5L7 9H3z" stroke="white" strokeWidth="1.8" fill="none" />
           {!muted && <path d="M16 7c1.657 1.667 1.657 7.333 0 9" stroke="white" strokeWidth="1.8" fill="none" strokeLinecap="round"/>}
@@ -167,7 +167,11 @@ export default function App() {
         .tagline { white-space: nowrap; text-align: center; font-family: 'Helvetica Neue', Arial, sans-serif; }
         .header-logo { display: block; margin: 0 auto; filter: brightness(0) invert(1); }
         @media (max-width: 680px) {
-          .tagline { white-space: normal; margin-top: 1.25rem; }
+          .tagline { white-space: normal; margin-top: 2rem; }
+          .header-logo { margin-bottom: 0.75rem; }
+          select { font-size: 1rem; }
+          .main-stack { margin-top: 0; }
+        }
           .header-logo { margin-bottom: 0.75rem; }
           select { font-size: 1rem; }
           .main-stack { margin-top: 1.25rem; }
