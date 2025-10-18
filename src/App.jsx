@@ -28,23 +28,32 @@ export default function App() {
   const bgAudioRef = useRef(null);
   const TARGET_VOL = 0.18;
 
+  // Determine audio path dynamically depending on environment
+  const basePath = window.location.pathname.includes('/zensense') ? '/zensense/' : '/';
+  const AUDIO_SRC = `${basePath}meditation_1_low10mb.mp3`;
+
   useEffect(() => {
-    const a = new Audio();
-    a.preload = "auto";
-    a.src = "/meditation_low10mb.ogg.txt";
+    const a = new Audio(AUDIO_SRC);
     a.loop = true;
     a.volume = TARGET_VOL;
     a.muted = true;
     bgAudioRef.current = a;
     a.play().catch(() => {});
     return () => { try { a.pause(); } catch {}; bgAudioRef.current = null; };
-  }, []);
+  }, [AUDIO_SRC]);
 
   const setMutedState = (next) => {
     setMuted(next);
     const a = bgAudioRef.current; if (!a) return;
     a.muted = next;
-    if (!next) { a.play().catch(() => {}); }
+    if (!next) {
+      const p = a.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => {
+          window.addEventListener('pointerdown', () => a.play().catch(() => {}), { once: true });
+        });
+      }
+    }
   };
 
   useEffect(() => {
