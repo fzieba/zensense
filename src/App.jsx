@@ -27,18 +27,26 @@ export default function App() {
   const [muted, setMuted] = useState(true);
   const bgAudioRef = useRef(null);
   const bellCtxRef = useRef(null);
+  const audioElRef = useRef(null);
 
   const TARGET_VOL = 0.18;
   const basePath = window.location.pathname.includes('/zensense') ? '/zensense/' : '/';
   const AUDIO_SRC = `${basePath}meditation_1_low10mb.mp3`;
 
   useEffect(() => {
-    const a = new Audio(AUDIO_SRC);
+    // Prefer an <audio> element for better iOS Safari reliability
+    let a = audioElRef.current;
+    if (!a) {
+      a = new Audio();
+    }
+    a.src = AUDIO_SRC;
+    a.preload = 'auto';
     a.loop = true;
     a.volume = TARGET_VOL;
-    a.muted = true;
+    a.muted = true; // start muted for autoplay policies
     bgAudioRef.current = a;
-    a.play().catch(() => {});
+    try { a.load(); } catch {}
+    a.play().catch(() => { /* will start on user gesture */ });
     return () => { try { a.pause(); } catch {} bgAudioRef.current = null; };
   }, [AUDIO_SRC]);
 
@@ -55,6 +63,8 @@ export default function App() {
       }
     }
   };
+
+  const toggleMute = () => setMutedState(!muted);
 
   const ensureBellCtx = () => {
     if (!bellCtxRef.current) {
@@ -140,7 +150,7 @@ export default function App() {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "linear-gradient(160deg, #0d0f17 0%, #121829 100%)", color: "#fff", overflow: "hidden", textAlign: "center", ...globalFont }}>
-      <button onClick={() => setMutedState(!muted)} aria-label={muted ? "Unmute site audio" : "Mute site audio"} title={muted ? "Unmute" : "Mute"} style={{ position: "absolute", top: 16, right: 16, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "50%", width: "min(60px, 10vw)", height: "min(60px, 10vw)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", backdropFilter: "blur(6px)", color: "white" }}>
+      <button onClick={toggleMute} aria-label={muted ? "Unmute site audio" : "Mute site audio"} title={muted ? "Unmute" : "Mute"} onTouchStart={toggleMute} style={{ position: "absolute", top: 16, right: 16, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "50%", width: "min(60px, 10vw)", height: "min(60px, 10vw)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "white", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.15)", willChange: "transform, opacity", transform: "translateZ(0)", zIndex: 10, touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }} >
         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: "min(32px, 5vw)", height: "min(32px, 5vw)", display: "block", transform: "translate(3px, 1px)" }}>
           <path d="M3 9v6h4l5 4V5L7 9H3z" stroke="white" strokeWidth="1.8" fill="none" />
           {!muted && <path d="M16 7c1.657 1.667 1.657 7.333 0 9" stroke="white" strokeWidth="1.8" fill="none" strokeLinecap="round"/>}
@@ -148,15 +158,19 @@ export default function App() {
         </svg>
       </button>
 
+      {/* Hidden audio element for iOS */}
+      <audio ref={audioElRef} playsInline style={{ display: 'none' }} />
+
       <style>{`
         body, p, span, div, select, button, footer { font-family: 'Helvetica Neue', Arial, sans-serif; }
         select { font-size: 1rem; }
         .tagline { white-space: nowrap; text-align: center; font-family: 'Helvetica Neue', Arial, sans-serif; }
         .header-logo { display: block; margin: 0 auto; filter: brightness(0) invert(1); }
         @media (max-width: 680px) {
-          .tagline { white-space: normal; }
+          .tagline { white-space: normal; margin-top: 1.25rem; }
           .header-logo { margin-bottom: 0.75rem; }
           select { font-size: 1rem; }
+          .main-stack { margin-top: 1.25rem; }
         }
       `}</style>
 
@@ -168,8 +182,8 @@ export default function App() {
           </p>
         </header>
 
-        <main style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "2rem" }}>
-          <motion.button whileTap={{ scale: 0.97 }} onClick={running ? pause : start} style={{ height: "18rem", width: "18rem", borderRadius: "50%", border: `2px solid ${buttonColor}`, color: "#fff", background: "transparent", fontSize: "2rem", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 60px ${glowColor}` }}>
+        <main className="main-stack" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "2rem" }}>
+          <motion.button whileTap={{ scale: 0.97 }} onClick={running ? pause : start} style={{ height: "18rem", width: "18rem", borderRadius: "50%", border: `2px solid ${buttonColor}`, color: "#fff", background: "transparent", fontSize: "2rem", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 40px ${glowColor}` }}>
             {running ? "PAUSE" : hasStarted ? "RESUME" : "START"}
           </motion.button>
 
