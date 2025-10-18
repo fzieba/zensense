@@ -24,11 +24,11 @@ jobs:
           node-version: '20'
       - run: npm ci || npm install
       - run: npm run build
-      # SPA 404 fix — copy index to 404 (adjust path for CRA)
+      # SPA refresh fix (optional)
       - run: |
           if [ -d dist ]; then cp dist/index.html dist/404.html || true; fi
           if [ -d build ]; then cp build/index.html build/404.html || true; fi
-      # Upload whichever build folder exists
+      # Upload whichever exists
       - uses: actions/upload-pages-artifact@v3
         with:
           path: |
