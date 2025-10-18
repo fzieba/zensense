@@ -137,7 +137,7 @@ export default function App() {
       >
         {/* Header */}
         <header style={{ textAlign: "center", marginBottom: "-2vh" }}>
-          <img src="Zensense_Text_Only.png" alt="ZenSense Logo" style={{ width: 130, maxWidth: "40vw", filter: "brightness(0) invert(1)", display: "block", margin: "0 auto 0.25rem auto", transform: "translateY(-65px)" }} />
+          <img src="Zensense_Text_Only.png" alt="ZenSense Logo" style={{ width: 163, maxWidth: "40vw", filter: "brightness(0) invert(1)", display: "block", margin: "0 auto 0.25rem auto", transform: "translateY(-65px)" }} />
           <p className="tagline" style={{ fontSize: "1rem", opacity: 0.7, marginTop: "0.25rem", letterSpacing: 0.3, maxWidth: 860, width: "92%", marginLeft: "auto", marginRight: "auto", textAlign: "center", transform: "translateY(-55px)" }}>
             Your ultra-minimal focus timer for meditation & productivity.
           </p>
@@ -157,7 +157,7 @@ export default function App() {
             <span>Bell every</span>
             {!hasStarted ? (
               <select value={bellInterval} onChange={(e) => setBellInterval(parseInt(e.target.value))} style={{ background: "transparent", border: "1px solid #64748b", borderRadius: 6, padding: "4px 8px", color: "white" }}>
-                {[2, 5, 10, 15, 20].map((v) => <option key={v} value={v} style={{ color: "black" }}>{v}</option>)}
+                {[2, 5, 10, 15, 20, 30].map((v) => <option key={v} value={v} style={{ color: "black" }}>{v}</option>)}
               </select>
             ) : (
               <div style={{ border: "1px solid #64748b", borderRadius: 6, padding: "4px 12px", opacity: 0.9 }}>{bellInterval}</div>
