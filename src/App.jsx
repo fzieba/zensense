@@ -24,22 +24,25 @@ export default function App() {
   const [showTimer, setShowTimer] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [bellInterval, setBellInterval] = useState(10);
-  const [muted, setMuted] = useState(true);
+  const [muted, setMuted] = useState(true); // controls ONLY background music
+
   const bgAudioRef = useRef(null);
+  const bellCtxRef = useRef(null); // Web Audio for bell (never muted by UI)
+
   const TARGET_VOL = 0.18;
 
-  // Determine audio path dynamically depending on environment
   const basePath = window.location.pathname.includes('/zensense') ? '/zensense/' : '/';
   const AUDIO_SRC = `${basePath}meditation_1_low10mb.mp3`;
 
+  // Background music element (subject to mute toggle)
   useEffect(() => {
     const a = new Audio(AUDIO_SRC);
     a.loop = true;
     a.volume = TARGET_VOL;
-    a.muted = true;
+    a.muted = true; // start muted (autoplay policies)
     bgAudioRef.current = a;
     a.play().catch(() => {});
-    return () => { try { a.pause(); } catch {}; bgAudioRef.current = null; };
+    return () => { try { a.pause(); } catch {} bgAudioRef.current = null; };
   }, [AUDIO_SRC]);
 
   const setMutedState = (next) => {
@@ -56,6 +59,64 @@ export default function App() {
     }
   };
 
+  // Ensure a Web AudioContext exists for the bell (never muted by the UI)
+  const ensureBellCtx = () => {
+    if (!bellCtxRef.current) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return null;
+      bellCtxRef.current = new AudioCtx();
+    }
+    return bellCtxRef.current;
+  };
+
+  // Play a clear, high-pitched, elongated meditation bell
+  const playBell = () => {
+    const ctx = ensureBellCtx();
+    if (!ctx) return;
+    if (ctx.state === 'suspended') {
+      // resume on user gesture via START or any click; try immediate resume
+      ctx.resume().catch(() => {});
+    }
+
+    const now = ctx.currentTime;
+
+    // Gain envelope
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.5, now + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 3.2);
+
+    // Fundamental + overtone partials for a bright "ting"
+    const o1 = ctx.createOscillator();
+    o1.type = 'sine';
+    o1.frequency.setValueAtTime(880, now); // A5
+
+    const o2 = ctx.createOscillator();
+    o2.type = 'sine';
+    o2.frequency.setValueAtTime(1318.5, now); // E6 (sweet fifth-ish overtone)
+
+    // Very light high-pass to keep it airy
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.setValueAtTime(400, now);
+
+    o1.connect(g);
+    o2.connect(g);
+    g.connect(hp);
+    hp.connect(ctx.destination);
+
+    o1.start(now);
+    o2.start(now);
+    o1.stop(now + 3.3);
+    o2.stop(now + 3.3);
+
+    // Cleanup
+    setTimeout(() => {
+      try { g.disconnect(); hp.disconnect(); } catch {}
+    }, 3400);
+  };
+
+  // Tick timer (counts up indefinitely)
   useEffect(() => {
     let id;
     if (running) {
@@ -64,11 +125,24 @@ export default function App() {
     return () => clearInterval(id);
   }, [running]);
 
+  // Bell scheduler: ring at every X-minute multiple of elapsed (not at t=0)
+  useEffect(() => {
+    if (!running) return;
+    const period = bellInterval * 60;
+    if (period <= 0) return;
+    if (elapsed > 0 && elapsed % period === 0) {
+      playBell();
+    }
+  }, [elapsed, running, bellInterval]);
+
   const start = () => {
     setRunning(true);
     setShowTimer(true);
     setHasStarted(true);
-    setMutedState(false);
+    setMutedState(false); // unmute background music (bell remains independent)
+    // Create/resume bell context on first gesture
+    const ctx = ensureBellCtx();
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
   };
   const pause = () => setRunning(false);
   const reset = () => {
@@ -81,6 +155,10 @@ export default function App() {
   const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
   const ss = String(elapsed % 60).padStart(2, "0");
 
+  // Dynamic colors for START button based on running state
+  const buttonColor = running ? "rgba(34,197,94,0.7)" : "rgba(56,189,248,0.7)"; // green when running, blue otherwise
+  const glowColor = running ? "rgba(34,197,94,0.6)" : "rgba(56,189,248,0.6)";
+
   return (
     <div
       style={{
@@ -89,7 +167,6 @@ export default function App() {
         color: "#fff", overflow: "hidden", textAlign: "center"
       }}
     >
-      {/* Mute Button (fixed) */}
       <button
         onClick={() => setMutedState(!muted)}
         aria-label={muted ? "Unmute site audio" : "Mute site audio"}
@@ -113,14 +190,6 @@ export default function App() {
         </svg>
       </button>
 
-      <style>{`
-        *, *::before, *::after { box-sizing: border-box; }
-        html, body, #root { width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: hidden; }
-        body { background: #0d0f17; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; }
-        .tagline { white-space: nowrap; }
-        @media (max-width: 680px) { .tagline { white-space: normal; } }
-      `}</style>
-
       <section
         style={{
           position: "absolute",
@@ -135,20 +204,21 @@ export default function App() {
           padding: "0 1rem"
         }}
       >
-        {/* Header */}
         <header style={{ textAlign: "center", marginBottom: "-2vh" }}>
-          <img src="Zensense_Text_Only.png" alt="ZenSense Logo" style={{ width: 163, maxWidth: "40vw", filter: "brightness(0) invert(1)", display: "block", margin: "0 auto 0.25rem auto", transform: "translateY(-65px)" }} />
+          <picture>
+            <source srcSet="Zensense_Text_Only.png" media="(max-width: 680px)" />
+            <img src="Zensense_Text_Only.png" alt="ZenSense Logo" style={{ width: 163, maxWidth: "40vw", filter: "brightness(0) invert(1)", display: "block", margin: "0 auto 0.25rem auto", transform: "translateY(-65px)" }} />
+          </picture>
           <p className="tagline" style={{ fontSize: "1rem", opacity: 0.7, marginTop: "0.25rem", letterSpacing: 0.3, maxWidth: 860, width: "92%", marginLeft: "auto", marginRight: "auto", textAlign: "center", transform: "translateY(-55px)" }}>
             Your ultra-minimal focus timer for meditation & productivity.
           </p>
         </header>
 
-        {/* Main */}
         <main style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "2rem" }}>
           <motion.button
             whileTap={{ scale: 0.97 }}
             onClick={running ? pause : start}
-            style={{ height: "18rem", width: "18rem", borderRadius: "50%", border: "2px solid rgba(56,189,248,0.7)", color: "#fff", background: "transparent", fontSize: "2rem", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 60px rgba(56,189,248,0.6)" }}
+            style={{ height: "18rem", width: "18rem", borderRadius: "50%", border: `2px solid ${buttonColor}`, color: "#fff", background: "transparent", fontSize: "2rem", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 0 60px ${glowColor}` }}
           >
             {running ? "PAUSE" : hasStarted ? "RESUME" : "START"}
           </motion.button>
@@ -182,7 +252,6 @@ export default function App() {
         </main>
       </section>
 
-      {/* Footer pinned to bottom edge */}
       <footer style={{ position: "absolute", left: 0, right: 0, bottom: 0, width: "100%", textAlign: "center", padding: "16px 0", opacity: 0.7, fontSize: 12 }}>
         No tracking, no sign-in. Just peace.
       </footer>
