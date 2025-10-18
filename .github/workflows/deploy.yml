@@ -24,16 +24,11 @@ jobs:
           node-version: '20'
       - run: npm ci || npm install
       - run: npm run build
-      # SPA refresh fix (optional)
-      - run: |
-          if [ -d dist ]; then cp dist/index.html dist/404.html || true; fi
-          if [ -d build ]; then cp build/index.html build/404.html || true; fi
-      # Upload whichever exists
+      # SPA refresh fix (copy index to 404)
+      - run: cp dist/index.html dist/404.html
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: |
-            dist
-            build
+          path: dist
   deploy:
     needs: build
     runs-on: ubuntu-latest
