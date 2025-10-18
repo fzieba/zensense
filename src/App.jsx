@@ -136,8 +136,10 @@ export default function App() {
   const buttonColor = running ? "rgba(34,197,94,0.7)" : "rgba(56,189,248,0.7)";
   const glowColor = running ? "rgba(34,197,94,0.6)" : "rgba(56,189,248,0.6)";
 
+  const globalFont = { fontFamily: "'Helvetica Neue', Arial, sans-serif" };
+
   return (
-    <div style={{ position: "fixed", inset: 0, background: "linear-gradient(160deg, #0d0f17 0%, #121829 100%)", color: "#fff", overflow: "hidden", textAlign: "center" }}>
+    <div style={{ position: "fixed", inset: 0, background: "linear-gradient(160deg, #0d0f17 0%, #121829 100%)", color: "#fff", overflow: "hidden", textAlign: "center", ...globalFont }}>
       <button onClick={() => setMutedState(!muted)} aria-label={muted ? "Unmute site audio" : "Mute site audio"} title={muted ? "Unmute" : "Mute"} style={{ position: "absolute", top: 16, right: 16, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "50%", width: "min(60px, 10vw)", height: "min(60px, 10vw)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", backdropFilter: "blur(6px)", color: "white" }}>
         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: "min(32px, 5vw)", height: "min(32px, 5vw)", display: "block", transform: "translate(3px, 1px)" }}>
           <path d="M3 9v6h4l5 4V5L7 9H3z" stroke="white" strokeWidth="1.8" fill="none" />
@@ -147,9 +149,15 @@ export default function App() {
       </button>
 
       <style>{`
+        body, p, span, div, select, button, footer { font-family: 'Helvetica Neue', Arial, sans-serif; }
         .tagline { white-space: nowrap; text-align: center; font-family: 'Helvetica Neue', Arial, sans-serif; }
-        @media (max-width: 680px) { .tagline { white-space: normal; } }
+        @media (max-width: 680px) {
+          .tagline { white-space: normal; }
+          .mobile-logo { display: block !important; margin: 1rem auto 0 auto; }
+        }
       `}</style>
+
+      <img src="Zensense_Text_Only.png" alt="ZenSense Logo" className="mobile-logo" style={{ display: "none", width: 140, filter: "brightness(0) invert(1)", position: "absolute", top: 20, left: "50%", transform: "translateX(-50%)" }} />
 
       <section style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(920px, 92vw)", display: "flex", flexDirection: "column", alignItems: "center", gap: "4vh", padding: "0 1rem" }}>
         <header style={{ textAlign: "center", marginBottom: "-2vh" }}>
