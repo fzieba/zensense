@@ -150,22 +150,20 @@ export default function App() {
 
       <style>{`
         body, p, span, div, select, button, footer { font-family: 'Helvetica Neue', Arial, sans-serif; }
+        select { font-size: 1rem; }
         .tagline { white-space: nowrap; text-align: center; font-family: 'Helvetica Neue', Arial, sans-serif; }
+        .header-logo { display: block; margin: 0 auto; filter: brightness(0) invert(1); }
         @media (max-width: 680px) {
           .tagline { white-space: normal; }
-          .mobile-logo { display: block !important; margin: 1rem auto 0 auto; }
+          .header-logo { margin-bottom: 0.75rem; }
+          select { font-size: 1rem; }
         }
       `}</style>
 
-      <img src="Zensense_Text_Only.png" alt="ZenSense Logo" className="mobile-logo" style={{ display: "none", width: 140, filter: "brightness(0) invert(1)", position: "absolute", top: 20, left: "50%", transform: "translateX(-50%)" }} />
-
       <section style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(920px, 92vw)", display: "flex", flexDirection: "column", alignItems: "center", gap: "4vh", padding: "0 1rem" }}>
         <header style={{ textAlign: "center", marginBottom: "-2vh" }}>
-          <picture>
-            <source srcSet="Zensense_Text_Only.png" media="(max-width: 680px)" />
-            <img src="Zensense_Text_Only.png" alt="ZenSense Logo" style={{ width: 163, maxWidth: "40vw", filter: "brightness(0) invert(1)", display: "block", margin: "0 auto 0.25rem auto", transform: "translateY(-65px)" }} />
-          </picture>
-          <p className="tagline" style={{ fontSize: "1rem", opacity: 0.7, marginTop: "0.25rem", letterSpacing: 0.3, maxWidth: 860, width: "92%", marginLeft: "auto", marginRight: "auto", transform: "translateY(-55px)" }}>
+          <img src="Zensense_Text_Only.png" alt="ZenSense Logo" className="header-logo" style={{ width: 163, maxWidth: "40vw" }} />
+          <p className="tagline" style={{ fontSize: "1rem", opacity: 0.7, marginTop: "1.25rem", letterSpacing: 0.3, maxWidth: 860, width: "92%", marginLeft: "auto", marginRight: "auto" }}>
             Your ultra-minimal focus timer for meditation & productivity.
           </p>
         </header>
@@ -178,11 +176,11 @@ export default function App() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.75rem" }}>
             <span>Bell every</span>
             {!hasStarted ? (
-              <select value={bellInterval} onChange={(e) => setBellInterval(parseInt(e.target.value))} style={{ background: "transparent", border: "1px solid #64748b", borderRadius: 6, padding: "4px 8px", color: "white" }}>
+              <select value={bellInterval} onChange={(e) => setBellInterval(parseInt(e.target.value))} style={{ background: "transparent", border: "1px solid #64748b", borderRadius: 6, padding: "4px 8px", color: "white", fontSize: "1rem" }}>
                 {[2, 5, 10, 15, 20, 30].map((v) => <option key={v} value={v} style={{ color: "black" }}>{v}</option>)}
               </select>
             ) : (
-              <div style={{ border: "1px solid #64748b", borderRadius: 6, padding: "4px 12px", opacity: 0.9 }}>{bellInterval}</div>
+              <div style={{ border: "1px solid #64748b", borderRadius: 6, padding: "4px 12px", opacity: 0.9, fontSize: "1rem" }}>{bellInterval}</div>
             )}
             <span>minutes</span>
           </div>
