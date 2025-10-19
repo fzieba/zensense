@@ -24,30 +24,68 @@ export default function App() {
   const [showTimer, setShowTimer] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [bellInterval, setBellInterval] = useState(10);
-  const [muted, setMuted] = useState(true); // controls background music only
+  const [muted, setMuted] = useState(true);
 
   const bgAudioRef = useRef(null);
-  const bellCtxRef = useRef(null); // web audio for bell (never muted by UI)
-  const audioElRef = useRef(null); // html <audio> for iOS reliability
+  const bellCtxRef = useRef(null);
+  const audioElRef = useRef(null);
+  const bellAudioRef = useRef(null);
 
   const TARGET_VOL = 0.18;
   const basePath = window.location.pathname.includes('/zensense') ? '/zensense/' : '/';
   const AUDIO_SRC = `${basePath}meditation_1_low10mb.mp3`;
+  const BELL_SRC = `${basePath}bells-1-72261.mp3`;
 
-  // --- Background music setup (muted until user unmutes) ---
   useEffect(() => {
     let a = audioElRef.current;
     if (!a) a = new Audio();
     a.src = AUDIO_SRC;
     a.preload = 'auto';
-    a.loop = true;
+    a.loop = true; // native loop
     a.volume = TARGET_VOL;
     a.muted = true; // start muted for autoplay policies
     bgAudioRef.current = a;
+
+    // Ensure seamless, infinite looping across browsers
+    const onEnded = () => {
+      try { a.currentTime = 0; } catch {}
+      const p = a.play();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    };
+    a.addEventListener('ended', onEnded);
+
+    // Resume if tab regains focus and user has unmuted
+    const onVis = () => {
+      if (!document.hidden && a && !a.muted) {
+        const p = a.play();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
+
     try { a.load(); } catch {}
     a.play().catch(() => {});
-    return () => { try { a.pause(); } catch {} bgAudioRef.current = null; };
+
+    return () => {
+      try { a.pause(); } catch {}
+      try { a.removeEventListener('ended', onEnded); } catch {}
+      document.removeEventListener('visibilitychange', onVis);
+      bgAudioRef.current = null;
+    };
   }, [AUDIO_SRC]);
+
+  // Preload bell audio (independent from bg music & mute state)
+  useEffect(() => {
+    let b = bellAudioRef.current;
+    if (!b) b = new Audio();
+    b.src = BELL_SRC;
+    b.preload = 'auto';
+    b.loop = false;
+    b.volume = 0.9; // strong but not harsh
+    bellAudioRef.current = b;
+    try { b.load(); } catch {}
+    return () => { try { b.pause(); } catch {} };
+  }, [BELL_SRC]);
 
   const setMutedState = (next) => {
     setMuted(next);
@@ -65,7 +103,6 @@ export default function App() {
   };
   const toggleMute = () => setMutedState(!muted);
 
-  // --- Bell (Web Audio, not affected by mute) ---
   const ensureBellCtx = () => {
     if (!bellCtxRef.current) {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -74,55 +111,35 @@ export default function App() {
     }
     return bellCtxRef.current;
   };
+
   const playBell = () => {
-    const ctx = ensureBellCtx();
-    if (!ctx) return;
-    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-
-    const now = ctx.currentTime;
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.0001, now);
-    g.gain.exponentialRampToValueAtTime(0.5, now + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + 3.2);
-
-    const o1 = ctx.createOscillator();
-    o1.type = 'sine';
-    o1.frequency.setValueAtTime(880, now);
-    const o2 = ctx.createOscillator();
-    o2.type = 'sine';
-    o2.frequency.setValueAtTime(1318.5, now);
-
-    const hp = ctx.createBiquadFilter();
-    hp.type = 'highpass';
-    hp.frequency.setValueAtTime(400, now);
-
-    o1.connect(g); o2.connect(g); g.connect(hp); hp.connect(ctx.destination);
-    o1.start(now); o2.start(now); o1.stop(now + 3.3); o2.stop(now + 3.3);
-    setTimeout(() => { try { g.disconnect(); hp.disconnect(); } catch {} }, 3400);
+    const b = bellAudioRef.current;
+    if (!b) return;
+    try { b.currentTime = 0; } catch {}
+    const p = b.play();
+    if (p && typeof p.catch === 'function') p.catch(() => {});
   };
 
-  // --- Timer (counts up indefinitely) ---
   useEffect(() => {
     let id;
     if (running) id = setInterval(() => setElapsed((t) => t + 1), 1000);
     return () => clearInterval(id);
   }, [running]);
 
-  // --- Bell schedule ---
   useEffect(() => {
     if (!running) return;
     const period = bellInterval * 60;
     if (period > 0 && elapsed > 0 && elapsed % period === 0) playBell();
   }, [elapsed, running, bellInterval]);
 
-  // --- Controls ---
   const start = () => {
     setRunning(true);
     setShowTimer(true);
+    // Ring bell only on the very first start (not on resume)
+    if (!hasStarted) playBell();
     setHasStarted(true);
-    setMutedState(false); // unmute music on start
-    const ctx = ensureBellCtx();
-    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+    setMutedState(false);
+    // No WebAudio bell context needed anymore here
   };
   const pause = () => setRunning(false);
   const reset = () => { setRunning(false); setElapsed(0); setShowTimer(false); setHasStarted(false); };
@@ -135,8 +152,7 @@ export default function App() {
   const globalFont = { fontFamily: "'Helvetica Neue', Arial, sans-serif" };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "radial-gradient(circle at center, #0d0f17 0%, #121829 100%)", color: "#fff", overflowX: "hidden", overflowY: "auto", textAlign: "center", paddingBottom: "72px", ...globalFont }}>
-      {/* Audio toggle */}
+    <div className="page" style={{ background: "radial-gradient(circle at center, #0d0f17 0%, #121829 100%)", color: "#fff", textAlign: "center", ...globalFont }}>
       <button
         onPointerUp={toggleMute}
         aria-label={muted ? "Unmute site audio" : "Mute site audio"}
@@ -150,34 +166,33 @@ export default function App() {
         </svg>
       </button>
 
-      {/* Hidden audio element for iOS */}
       <audio ref={audioElRef} playsInline style={{ display: 'none' }} />
 
-      {/* Styles for layout & mobile behavior */}
       <style>{`
+        /* Global typography */
         body, p, span, div, select, button, footer { font-family: 'Helvetica Neue', Arial, sans-serif; }
         select { font-size: 1rem; }
         .tagline { white-space: nowrap; text-align: center; }
         .header-logo { display: block; margin: 0 auto; filter: brightness(0) invert(1); }
-        .core { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(920px, 92vw); display: flex; flex-direction: column; align-items: center; gap: 4vh; padding: 0 1rem; }
+
+        /* Page layout (desktop-first): one screen, no scroll, footer anchored */
+        .page { min-height: 100vh; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        .core { flex: 1; width: min(920px, 92vw); margin: 0 auto; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4vh; padding: 6vh 1rem 0; }
         .main-stack { margin-top: 1.25rem; }
+        footer { margin-top: auto; }
+
+        /* Mobile overrides: allow scroll if needed, keep footer at bottom of content */
         @media (max-width: 680px) {
-          html, body, #root { height: 100%; }
+          html, body, #root, .page { height: auto; min-height: 100vh; }
+          .page { overflow-x: hidden; overflow-y: auto; }
           .tagline { white-space: normal; margin-top: 1rem; }
           .header-logo { margin-bottom: 0.5rem; }
           select { font-size: 1rem; }
-          .core { position: static; transform: none; margin: 0 auto; width: min(920px, 92vw); min-height: calc(100vh - 96px); display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 6vh 1rem 104px; }
-          .main-stack { margin-top: 0; }
-        }
-          .tagline { white-space: normal; margin-top: 2rem; }
-          .header-logo { margin-bottom: 0.75rem; }
-          select { font-size: 1rem; }
-          .core { position: static; transform: none; margin: 0 auto; width: min(920px, 92vw); min-height: calc(100vh - 72px); display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 10vh 1rem 88px; }
-          .main-stack { margin-top: 0; }
+          .core { flex: unset; width: min(920px, 92vw); padding: 8vh 1rem 120px; justify-content: flex-start; }
+          footer { position: static !important; padding-bottom: 1.5rem; }
         }
       `}</style>
 
-      {/* MAIN CONTENT */}
       <section className="core">
         <header style={{ textAlign: "center", marginBottom: "0" }}>
           <img src="Zensense_Text_Only.png" alt="ZenSense Logo" className="header-logo" style={{ width: 163, maxWidth: "40vw" }} />
@@ -224,8 +239,7 @@ export default function App() {
         </main>
       </section>
 
-      {/* FOOTER */}
-      <footer style={{ position: "fixed", left: 0, right: 0, bottom: 0, width: "100%", textAlign: "center", padding: "16px 0", opacity: 0.7, fontSize: 12, background: "transparent" }}>
+      <footer style={{ position: "static", left: 0, right: 0, width: "100%", textAlign: "center", padding: "16px 0", opacity: 0.7, fontSize: 12, background: "transparent" }}>
         No tracking, no sign-in. Just peace.
       </footer>
     </div>
