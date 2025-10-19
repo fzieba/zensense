@@ -30,6 +30,8 @@ export default function App() {
   const bellCtxRef = useRef(null);
   const audioElRef = useRef(null);
   const bellAudioRef = useRef(null);
+  const coreRef = useRef(null);
+  const footerRef = useRef(null);
 
   const TARGET_VOL = 0.18;
   const basePath = window.location.pathname.includes('/zensense') ? '/zensense/' : '/';
@@ -151,6 +153,41 @@ export default function App() {
 
   const globalFont = { fontFamily: "'Helvetica Neue', Arial, sans-serif" };
 
+  // Dynamically scale desktop layout to fit viewport without overlap
+  useEffect(() => {
+    const el = coreRef.current;
+    const footer = footerRef.current;
+    if (!el) return;
+    const calc = () => {
+      // Only scale on desktop
+      if (window.matchMedia('(max-width: 680px)').matches) {
+        el.style.setProperty('--scale', '1');
+        document.documentElement.style.setProperty('--scale', '1');
+        return;
+      }
+      // Temporarily reset scale to measure natural height
+      const prev = getComputedStyle(el).getPropertyValue('--scale');
+      el.style.setProperty('--scale', '1');
+      const naturalH = el.scrollHeight; // unscaled content height
+      const footerH = footer ? footer.offsetHeight : 0;
+      const available = window.innerHeight - footerH; // header is inside core
+      const s = Math.min(1, Math.max(0.6, available / naturalH));
+      el.style.setProperty('--scale', String(s));
+      document.documentElement.style.setProperty('--scale', String(s));
+    };
+    calc();
+    const ro = new ResizeObserver(calc);
+    ro.observe(document.documentElement);
+    ro.observe(el);
+    window.addEventListener('orientationchange', calc);
+    window.addEventListener('resize', calc);
+    return () => {
+      try { ro.disconnect(); } catch {}
+      window.removeEventListener('orientationchange', calc);
+      window.removeEventListener('resize', calc);
+    };
+  }, []);
+
   return (
     <div className="page" style={{ background: "radial-gradient(circle at center, #0d0f17 0%, #121829 100%)", color: "#fff", textAlign: "center", ...globalFont }}>
       <button
@@ -169,6 +206,12 @@ export default function App() {
       <audio ref={audioElRef} playsInline style={{ display: 'none' }} />
 
       <style>{`
+        /* Reset & safety to remove any white gutters */
+        html, body, #root { margin: 0; padding: 0; height: 100%; background: #0b0f19; }
+        :root { --scale: 1; }
+        * { box-sizing: border-box; }
+        img { display: block; max-width: 100%; }
+
         /* Global typography */
         body, p, span, div, select, button, footer { font-family: 'Helvetica Neue', Arial, sans-serif; }
         select { font-size: 1rem; }
@@ -176,14 +219,16 @@ export default function App() {
         .header-logo { display: block; margin: 0 auto; filter: brightness(0) invert(1); }
 
         /* Page layout (desktop-first): one screen, no scroll, footer anchored */
-        .page { min-height: 100vh; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        .page { min-height: 100vh; height: 100svh; display: flex; flex-direction: column; overflow: hidden; }
         .core { flex: 1; width: min(920px, 92vw); margin: 0 auto; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4vh; padding: 6vh 1rem 0; }
+        .core-scale { transform-origin: top center; }
+        @media (min-width: 681px) { .core-scale { transform: scale(var(--scale)); } }
         .main-stack { margin-top: 1.25rem; }
         footer { margin-top: auto; }
 
         /* Mobile overrides: allow scroll if needed, keep footer at bottom of content */
         @media (max-width: 680px) {
-          html, body, #root, .page { height: auto; min-height: 100vh; }
+          html, body, #root, .page { height: auto; min-height: 100svh; }
           .page { overflow-x: hidden; overflow-y: auto; }
           .tagline { white-space: normal; margin-top: 1rem; }
           .header-logo { margin-bottom: 0.5rem; }
@@ -193,7 +238,7 @@ export default function App() {
         }
       `}</style>
 
-      <section className="core">
+      <section className="core core-scale" ref={coreRef}>
         <header style={{ textAlign: "center", marginBottom: "0" }}>
           <img src="Zensense_Text_Only.png" alt="ZenSense Logo" className="header-logo" style={{ width: 163, maxWidth: "40vw" }} />
           <p className="tagline" style={{ fontSize: "1rem", opacity: 0.7, marginTop: "1.25rem", letterSpacing: 0.3, maxWidth: 860, width: "92%", marginLeft: "auto", marginRight: "auto" }}>
@@ -239,7 +284,7 @@ export default function App() {
         </main>
       </section>
 
-      <footer style={{ position: "static", left: 0, right: 0, width: "100%", textAlign: "center", padding: "16px 0", opacity: 0.7, fontSize: 12, background: "transparent" }}>
+      <footer ref={footerRef} style={{ position: "static", left: 0, right: 0, width: "100%", textAlign: "center", padding: "16px 0", opacity: 0.7, fontSize: 12, background: "transparent" }}>
         No tracking, no sign-in. Just peace.
       </footer>
     </div>
