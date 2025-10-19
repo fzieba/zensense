@@ -135,7 +135,7 @@ export default function App() {
   const globalFont = { fontFamily: "'Helvetica Neue', Arial, sans-serif" };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "radial-gradient(circle at center, #0d0f17 0%, #121829 100%)", color: "#fff", overflowX: "hidden", overflowY: "auto", textAlign: "center", ...globalFont }}>
+    <div style={{ position: "fixed", inset: 0, background: "radial-gradient(circle at center, #0d0f17 0%, #121829 100%)", color: "#fff", overflowX: "hidden", overflowY: "auto", textAlign: "center", paddingBottom: "72px", ...globalFont }}>
       {/* Audio toggle */}
       <button
         onPointerUp={toggleMute}
@@ -163,6 +163,12 @@ export default function App() {
         .main-stack { margin-top: 1.25rem; }
         @media (max-width: 680px) {
           html, body, #root { height: 100%; }
+          .tagline { white-space: normal; margin-top: 1rem; }
+          .header-logo { margin-bottom: 0.5rem; }
+          select { font-size: 1rem; }
+          .core { position: static; transform: none; margin: 0 auto; width: min(920px, 92vw); min-height: calc(100vh - 96px); display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 6vh 1rem 104px; }
+          .main-stack { margin-top: 0; }
+        }
           .tagline { white-space: normal; margin-top: 2rem; }
           .header-logo { margin-bottom: 0.75rem; }
           select { font-size: 1rem; }
@@ -219,7 +225,7 @@ export default function App() {
       </section>
 
       {/* FOOTER */}
-      <footer style={{ position: "absolute", left: 0, right: 0, bottom: 0, width: "100%", textAlign: "center", padding: "16px 0", opacity: 0.7, fontSize: 12 }}>
+      <footer style={{ position: "fixed", left: 0, right: 0, bottom: 0, width: "100%", textAlign: "center", padding: "16px 0", opacity: 0.7, fontSize: 12, background: "transparent" }}>
         No tracking, no sign-in. Just peace.
       </footer>
     </div>
