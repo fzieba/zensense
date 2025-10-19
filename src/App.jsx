@@ -173,7 +173,7 @@ export default function App() {
 
       {/* MAIN CONTENT */}
       <section className="core">
-        <header style={{ textAlign: "center", marginBottom: "-2vh" }}>
+        <header style={{ textAlign: "center", marginBottom: "0" }}>
           <img src="Zensense_Text_Only.png" alt="ZenSense Logo" className="header-logo" style={{ width: 163, maxWidth: "40vw" }} />
           <p className="tagline" style={{ fontSize: "1rem", opacity: 0.7, marginTop: "1.25rem", letterSpacing: 0.3, maxWidth: 860, width: "92%", marginLeft: "auto", marginRight: "auto" }}>
             Your ultra-minimal focus timer for meditation & productivity.
