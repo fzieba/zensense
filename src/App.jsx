@@ -32,6 +32,8 @@ export default function App() {
   const bellAudioRef = useRef(null);
   const coreRef = useRef(null);
   const footerRef = useRef(null);
+  const wakeLockRef = useRef(null);
+  const noSleepVideoRef = useRef(null);
 
   const TARGET_VOL = 0.18;
   const basePath = window.location.pathname.includes('/zensense') ? '/zensense/' : '/';
@@ -122,6 +124,19 @@ export default function App() {
     if (p && typeof p.catch === 'function') p.catch(() => {});
   };
 
+  // Re-acquire wake lock on visibility change when running
+  useEffect(() => {
+    const onVis = () => {
+      if (running && !document.hidden) {
+        requestWakeLock();
+        // try to resume hidden video fallback as well
+        const v = noSleepVideoRef.current; if (v) { const p = v.play(); if (p && p.catch) p.catch(() => {}); }
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [running]);
+
   useEffect(() => {
     let id;
     if (running) id = setInterval(() => setElapsed((t) => t + 1), 1000);
@@ -134,6 +149,27 @@ export default function App() {
     if (period > 0 && elapsed > 0 && elapsed % period === 0) playBell();
   }, [elapsed, running, bellInterval]);
 
+  const requestWakeLock = async () => {
+    try {
+      if (navigator.wakeLock && typeof navigator.wakeLock.request === 'function') {
+        // Release any existing
+        try { if (wakeLockRef.current) { await wakeLockRef.current.release(); } } catch {}
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
+      }
+    } catch (e) {
+      // some platforms throw when locked by OS or low-power mode
+    }
+  };
+  const releaseWakeLock = async () => {
+    try { if (wakeLockRef.current) { await wakeLockRef.current.release(); wakeLockRef.current = null; } } catch {}
+  };
+  const ensureNoSleepVideoPlaying = () => {
+    const v = noSleepVideoRef.current; if (!v) return;
+    v.muted = true; v.loop = true; v.playsInline = true;
+    const p = v.play(); if (p && p.catch) p.catch(() => {});
+  };
+  const stopNoSleepVideo = () => { const v = noSleepVideoRef.current; if (v) { try { v.pause(); } catch {} } };
+
   const start = () => {
     setRunning(true);
     setShowTimer(true);
@@ -141,10 +177,12 @@ export default function App() {
     if (!hasStarted) playBell();
     setHasStarted(true);
     setMutedState(false);
-    // No WebAudio bell context needed anymore here
+    // Prevent device sleep while timing
+    requestWakeLock();
+    ensureNoSleepVideoPlaying();
   };
-  const pause = () => setRunning(false);
-  const reset = () => { setRunning(false); setElapsed(0); setShowTimer(false); setHasStarted(false); };
+  const pause = () => { setRunning(false); releaseWakeLock(); stopNoSleepVideo(); };
+  const reset = () => { setRunning(false); setElapsed(0); setShowTimer(false); setHasStarted(false); releaseWakeLock(); stopNoSleepVideo(); };
 
   const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
   const ss = String(elapsed % 60).padStart(2, "0");
@@ -205,6 +243,19 @@ export default function App() {
 
       <audio ref={audioElRef} playsInline style={{ display: 'none' }} />
 
+      {/* Hidden 1x1 silent looping video to keep iOS devices awake while timer runs */}
+      <video
+        ref={noSleepVideoRef}
+        playsInline
+        muted
+        loop
+        preload="auto"
+        style={{ width: 1, height: 1, opacity: 0, position: 'absolute', left: -9999, top: -9999 }}
+      >
+        {/* Tiny data-URI MP4; purposefully minimal duration/size */}
+        <source src="data:video/mp4;base64,AAAAIGZ0eXBtcDQyAAAAAG1wNDFtcDQyaXNvbWF2YzEAAAAIZnJlZQAABG1kYXQAAAAAAA==" type="video/mp4" />
+      </video>
+
       <style>{`
         /* Reset & safety to remove any white gutters */
         html, body, #root { margin: 0; padding: 0; height: 100%; background: #0b0f19; }
@@ -217,6 +268,11 @@ export default function App() {
         select { font-size: 1rem; }
         .tagline { white-space: nowrap; text-align: center; }
         .header-logo { display: block; margin: 0 auto; filter: brightness(0) invert(1); }
+
+        /* Mobile-specific alignment adjustment for logo */
+        @media (max-width: 680px) {
+          .header-logo { margin-top: 16px !important; }
+        }
 
         /* Page layout (desktop-first): one screen, no scroll, footer anchored */
         .page { min-height: 100vh; height: 100svh; display: flex; flex-direction: column; overflow: hidden; }
