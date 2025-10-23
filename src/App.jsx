@@ -115,7 +115,7 @@ export default function App() {
         const onVis = () => {
           if (!audioElRef.current) return;
           if (!document.hidden) {
-            if (!muted) { a.volume = TARGET_VOL; a.muted = false; const p = a.play(); if (p && p.catch) p.catch(() => {}); }
+            if (!muted) { a.volume = TARGET_VOL; a.muted = false; try { a.removeAttribute('muted'); } catch {} const p = a.play(); if (p && p.catch) p.catch(() => {}); }
             else { a.volume = TARGET_VOL; a.muted = true; a.setAttribute('muted',''); }
           } else {
             if (muted && running) { a.muted = false; a.volume = QUIET_VOL; }
@@ -167,9 +167,7 @@ export default function App() {
       if (next) {
         if (document.hidden && running) { a.muted = false; a.volume = QUIET_VOL; }
         else { a.volume = TARGET_VOL; a.muted = true; }
-      } else {
-        a.volume = TARGET_VOL; a.muted = false;
-      }
+      } else { a.volume = TARGET_VOL; a.muted = false; try { a.removeAttribute('muted'); } catch {} }
     } catch {}
     if (!next) {
       const p = a.play();
