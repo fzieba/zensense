@@ -142,10 +142,7 @@ export default function App() {
         const onCanPlay = () => { const p = a.play(); if (p && p.catch) p.catch(() => {}); };
         a.addEventListener('canplaythrough', onCanPlay, { once: true });
 
-        // Prime playback on the very first user interaction so unmute works on the first tap
-        const prime = () => { try { a.muted = true; a.setAttribute('muted',''); } catch {} const p = a.play(); if (p && p.catch) p.catch(() => {}); document.removeEventListener('pointerdown', prime); document.removeEventListener('touchstart', prime); };
-        document.addEventListener('pointerdown', prime, { once: true, passive: true });
-        document.addEventListener('touchstart', prime, { once: true, passive: true });
+        // Removed one-time pointerdown/touchstart prime to avoid race with unmute; relying on muted autoplay + explicit play() on unmute.
 
         try { a.load(); } catch {}
         a.play().catch(() => {});
@@ -169,15 +166,18 @@ export default function App() {
     setMuted(next);
     const a = bgAudioRef.current || audioElRef.current; if (!a) return;
     try {
-      if (next) {
+      if (!next) {
+        // UNMUTE: ensure attribute and property are both cleared, then force a fresh play within this gesture
+        a.muted = false; try { a.removeAttribute('muted'); } catch {}
+        a.volume = TARGET_VOL;
+        try { a.pause(); } catch {}
+        const p = a.play(); if (p && p.catch) p.catch(() => {});
+      } else {
+        // MUTE
         if (document.hidden && running) { a.muted = false; a.volume = QUIET_VOL; }
-        else { a.volume = TARGET_VOL; a.muted = true; }
-      } else { a.volume = TARGET_VOL; a.muted = false; try { a.removeAttribute('muted'); } catch {} }
+        else { a.volume = TARGET_VOL; a.muted = true; try { a.setAttribute('muted',''); } catch {} }
+      }
     } catch {}
-    // Ensure playback is running; if it fails here, the prime-on-pointerdown handler will have already started it
-    if (!next) {
-      const p = a.play(); if (p && p.catch) p.catch(() => {});
-    }
   };
   const toggleMute = () => setMutedState(!muted);
 
