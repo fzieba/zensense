@@ -98,11 +98,13 @@ export default function App() {
       if (bgAudioRef.current !== a) {
         bgAudioRef.current = a;
 
-        a.src = AUDIO_SRC;
-        a.preload = 'auto';
-        a.loop = true;
-        a.volume = TARGET_VOL;
-        a.muted = true; // start muted to satisfy autoplay policies
+        // Ensure attributes for reliable muted autoplay
+        try { a.autoplay = true; } catch {}
+        try { a.playsInline = true; } catch {}
+        try { a.muted = true; a.setAttribute('muted', ''); } catch {}
+        try { a.loop = true; } catch {}
+        try { a.preload = 'auto'; } catch {}
+        try { a.volume = TARGET_VOL; } catch {}
 
         const onEnded = () => {
           try { a.currentTime = 0; } catch {}
@@ -114,14 +116,13 @@ export default function App() {
           if (!audioElRef.current) return;
           if (!document.hidden) {
             if (!muted) { a.volume = TARGET_VOL; a.muted = false; const p = a.play(); if (p && p.catch) p.catch(() => {}); }
-            else { a.volume = TARGET_VOL; a.muted = true; }
+            else { a.volume = TARGET_VOL; a.muted = true; a.setAttribute('muted',''); }
           } else {
             if (muted && running) { a.muted = false; a.volume = QUIET_VOL; }
           }
         };
         document.addEventListener('visibilitychange', onVis);
 
-        // Watchdog: keep audio/contexts alive during long sessions
         const watch = setInterval(() => {
           const aW = audioElRef.current;
           if (!aW) return;
@@ -138,15 +139,12 @@ export default function App() {
           const ctx = bellCtxRef.current; if (ctx && ctx.state === 'suspended' && running) { try { ctx.resume(); } catch {} }
         }, 30000);
 
-        // Nudge playback when ready
         const onCanPlay = () => { const p = a.play(); if (p && p.catch) p.catch(() => {}); };
         a.addEventListener('canplaythrough', onCanPlay, { once: true });
 
-        // First attempt (muted autoplay)
         try { a.load(); } catch {}
         a.play().catch(() => {});
 
-        // Cleanup when component unmounts
         return () => {
           try { a.pause(); } catch {}
           try { a.removeEventListener('ended', onEnded); } catch {}
@@ -322,7 +320,16 @@ export default function App() {
       </button>
 
       {/* Hidden media elements */}
-      <audio ref={audioElRef} playsInline style={{ display: 'none' }} />
+      <audio
+        ref={audioElRef}
+        src={AUDIO_SRC}
+        muted
+        autoPlay
+        loop
+        playsInline
+        preload="auto"
+        style={{ display: 'none' }}
+      />
       <video ref={noSleepVideoRef} playsInline muted loop preload="auto" style={{ width: 1, height: 1, opacity: 0, position: 'absolute', left: -9999, top: -9999 }}>
         <source src="data:video/mp4;base64,AAAAIGZ0eXBtcDQyAAAAAG1wNDFtcDQyaXNvbWF2YzEAAAAIZnJlZQAABG1kYXQAAAAAAA==" type="video/mp4" />
       </video>
