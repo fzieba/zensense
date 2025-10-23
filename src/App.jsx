@@ -1,13 +1,16 @@
 import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-// ---- Utilities ----
+// Small helpers
 function usePageTitle(title) { useEffect(() => { document.title = title; }, [title]); }
 function useFavicon(url) {
   useEffect(() => {
     const olds = document.querySelectorAll('link[rel="icon"]');
     olds.forEach(n => n.remove());
-    const link = document.createElement('link'); link.rel = 'icon'; link.href = url; document.head.appendChild(link);
+    const link = document.createElement('link');
+    link.rel = 'icon';
+    link.href = url;
+    document.head.appendChild(link);
   }, [url]);
 }
 
@@ -63,11 +66,8 @@ export default function App() {
     const a = audioElRef.current; if (!a) return;
     bgAudioRef.current = a;
     // Ensure correct attributes for muted autoplay
-    try { a.autoplay = true; } catch {}
-    try { a.playsInline = true; } catch {}
-    try { a.loop = true; } catch {}
-    try { a.preload = 'auto'; } catch {}
-    try { a.volume = TARGET_VOL; } catch {}
+    try { a.autoplay = true; a.defaultMuted = true; a.muted = true; } catch {}
+    try { a.playsInline = true; a.loop = true; a.preload = 'auto'; a.volume = TARGET_VOL; } catch {}
 
     const onEnded = () => { try { a.currentTime = 0; } catch {}; const p = a.play(); if (p && p.catch) p.catch(() => {}); };
     a.addEventListener('ended', onEnded);
@@ -80,17 +80,21 @@ export default function App() {
     };
     document.addEventListener('visibilitychange', onVis);
 
-    // Start playback silently on load
+    // Kick muted autoplay
     const n = a.play(); if (n && n.catch) n.catch(() => {});
 
-    return () => { try { a.pause(); } catch {}; try { a.removeEventListener('ended', onEnded); } catch {}; document.removeEventListener('visibilitychange', onVis); };
+    return () => {
+      try { a.pause(); } catch {}
+      try { a.removeEventListener('ended', onEnded); } catch {}
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, [AUDIO_SRC, muted, running]);
 
   // ---- Site mute toggle (background music only; bell is independent) ----
   const toggleMute = () => {
     const a = bgAudioRef.current || audioElRef.current; if (!a) { setMuted(m => !m); return; }
     if (muted) {
-      // First unmute: clear property & ensure a play() occurs inside this gesture
+      // First unmute: clear property, then play inside this gesture
       try { a.muted = false; a.volume = TARGET_VOL; } catch {}
       const p = a.play(); if (p && p.catch) p.catch(() => {});
       setMuted(false);
@@ -145,11 +149,8 @@ export default function App() {
     // Unlock bell paths on gesture (iOS/WebKit)
     try { const AC = window.AudioContext || window.webkitAudioContext; if (AC) { if (!bellCtxRef.current || bellCtxRef.current.state === 'closed') bellCtxRef.current = new AC(); if (bellCtxRef.current.state !== 'running') await bellCtxRef.current.resume().catch(() => {}); if (isIOS && bellAudioRef.current) { const b = bellAudioRef.current; const pv = b.volume; b.volume = 0; const p = b.play(); if (p && p.catch) await p.catch(() => {}); try { b.pause(); } catch {}; b.currentTime = 0; b.volume = pv; } } } catch {}
     if (!hasStarted) playBell(); setHasStarted(true);
-    // anchors
     const now = Date.now(); if (startMsRef.current == null) startMsRef.current = now - elapsed * 1000; nextBellMsRef.current = now + bellInterval * 60000;
-    // wake
     requestWakeLock(); ensureNoSleepVideo();
-    // unmute music on first start if user already tapped speaker we keep it; otherwise leave as is
     const a = bgAudioRef.current || audioElRef.current; if (a && !muted) { try { a.muted = false; a.volume = TARGET_VOL; const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch {} }
   };
   const pause = () => { setRunning(false); releaseWakeLock(); try { noSleepVideoRef.current?.pause?.(); } catch {} };
@@ -175,7 +176,7 @@ export default function App() {
       </button>
 
       {/* Hidden media elements */}
-      <audio ref={audioElRef} src={AUDIO_SRC} defaultMuted autoPlay loop playsInline preload="auto"
+      <audio ref={audioElRef} src={AUDIO_SRC} defaultMuted muted autoPlay loop playsInline preload="auto"
              style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none', left: 0, top: 0 }} />
       <video ref={noSleepVideoRef} playsInline muted loop preload="auto" style={{ width: 1, height: 1, opacity: 0, position: 'absolute', left: -9999, top: -9999 }}>
         <source src="data:video/mp4;base64,AAAAIGZ0eXBtcDQyAAAAAG1wNDFtcDQyaXNvbWF2YzEAAAAIZnJlZQAABG1kYXQAAAAAAA==" type="video/mp4" />
