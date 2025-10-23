@@ -339,7 +339,7 @@ export default function App() {
       <audio
         ref={audioElRef}
         src={AUDIO_SRC}
-        muted
+        defaultMuted
         autoPlay
         loop
         playsInline
