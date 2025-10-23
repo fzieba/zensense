@@ -167,10 +167,9 @@ export default function App() {
     const a = bgAudioRef.current || audioElRef.current; if (!a) return;
     try {
       if (!next) {
-        // UNMUTE: ensure attribute and property are both cleared, then force a fresh play within this gesture
+        // UNMUTE: clear both property & attribute, then play
         a.muted = false; try { a.removeAttribute('muted'); } catch {}
         a.volume = TARGET_VOL;
-        try { a.pause(); } catch {}
         const p = a.play(); if (p && p.catch) p.catch(() => {});
       } else {
         // MUTE
@@ -179,7 +178,26 @@ export default function App() {
       }
     } catch {}
   };
-  const toggleMute = () => setMutedState(!muted);
+  const toggleMute = () => {
+    // Do the critical audio operations inside the same user gesture BEFORE state update
+    const a = bgAudioRef.current || audioElRef.current;
+    if (a) {
+      try {
+        if (muted) {
+          // First unmute tap path
+          a.muted = false; try { a.removeAttribute('muted'); } catch {}
+          a.volume = TARGET_VOL;
+          const p = a.play(); if (p && p.catch) p.catch(() => {});
+        } else {
+          // Mute
+          if (document.hidden && running) { a.muted = false; a.volume = QUIET_VOL; }
+          else { a.volume = TARGET_VOL; a.muted = true; try { a.setAttribute('muted',''); } catch {} }
+        }
+      } catch {}
+    }
+    // Now update React state (after imperative audio change)
+    setMuted(!muted);
+  };
 
   // --- Preload bell into WebAudio buffer (with HTMLAudio fallback) ---
   useEffect(() => {
