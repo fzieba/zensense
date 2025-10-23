@@ -330,7 +330,7 @@ export default function App() {
           html, body, #root, .page { height: auto; min-height: 100svh; }
           .page { overflow-x: hidden; overflow-y: auto; }
           .tagline { white-space: normal; margin-top: 1rem; }
-          .header-logo { margin-bottom: 0.5rem; margin-top: calc(16px - 8vh) !important; }
+          .header-logo { margin-bottom: 0.5rem; margin-top: calc(16px - 4vh) !important; }
           .core { flex: unset; width: min(920px, 92vw); padding: 8vh 1rem 120px; justify-content: flex-start; }
           footer { position: static !important; padding-bottom: 1.5rem; }
         }
@@ -354,7 +354,7 @@ export default function App() {
             <span>Bell every</span>
             {!hasStarted ? (
               <select value={bellInterval} onChange={(e) => setBellInterval(parseInt(e.target.value))} style={{ background: "transparent", border: "1px solid #64748b", borderRadius: 6, padding: "4px 8px", color: "white", fontSize: "1rem" }}>
-                {[2, 5, 10, 15, 20, 30].map((v) => <option key={v} value={v} style={{ color: "black" }}>{v}</option>)}
+                {[2, 5, 10, 15, 20, 30, 45, 60].map((v) => <option key={v} value={v} style={{ color: "black" }}>{v}</option>)}
               </select>
             ) : (
               <div style={{ border: "1px solid #64748b", borderRadius: 6, padding: "4px 12px", opacity: 0.9, fontSize: "1rem" }}>{bellInterval}</div>
