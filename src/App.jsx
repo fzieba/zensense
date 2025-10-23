@@ -25,6 +25,10 @@ export default function App() {
   const [hasStarted, setHasStarted] = useState(false);
   const [bellInterval, setBellInterval] = useState(10); // minutes
   const [muted, setMuted] = useState(true); // background music only
+  const mutedRef = useRef(true);
+  const runningRef = useRef(false);
+  useEffect(() => { mutedRef.current = muted; }, [muted]);
+  useEffect(() => { runningRef.current = running; }, [running]);
 
   // ---- Refs ----
   const audioElRef = useRef(null);        // background music <audio>
@@ -61,11 +65,10 @@ export default function App() {
     const b = bellAudioRef.current; if (b) { try { b.muted = false; b.currentTime = 0; } catch {} const p = b.play(); if (p && p.catch) p.catch(() => {}); }
   };
 
-  // ---- Background music element: autoplay muted & loop from load ----
+  // ---- Background music element: autoplay muted & loop from load (wire once) ----
   useEffect(() => {
     const a = audioElRef.current; if (!a) return;
     bgAudioRef.current = a;
-    // Ensure correct attributes for muted autoplay
     try { a.autoplay = true; a.defaultMuted = true; a.muted = true; } catch {}
     try { a.playsInline = true; a.loop = true; a.preload = 'auto'; a.volume = TARGET_VOL; } catch {}
 
@@ -74,13 +77,13 @@ export default function App() {
 
     const onVis = () => {
       if (!document.hidden) {
-        if (!muted) { a.muted = false; a.volume = TARGET_VOL; const p = a.play(); if (p && p.catch) p.catch(() => {}); }
+        if (!mutedRef.current) { a.muted = false; a.volume = TARGET_VOL; const p = a.play(); if (p && p.catch) p.catch(() => {}); }
         else { a.muted = true; a.volume = TARGET_VOL; }
-      } else if (muted && running) { a.muted = false; a.volume = QUIET_VOL; }
+      } else if (mutedRef.current && runningRef.current) { a.muted = false; a.volume = QUIET_VOL; }
     };
     document.addEventListener('visibilitychange', onVis);
 
-    // Kick muted autoplay
+    // Kick muted autoplay once on mount
     const n = a.play(); if (n && n.catch) n.catch(() => {});
 
     return () => {
@@ -88,7 +91,7 @@ export default function App() {
       try { a.removeEventListener('ended', onEnded); } catch {}
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [AUDIO_SRC, muted, running]);
+  }, []);
 
   // ---- Site mute toggle (background music only; bell is independent) ----
   const toggleMute = () => {
@@ -176,7 +179,7 @@ export default function App() {
       </button>
 
       {/* Hidden media elements */}
-      <audio ref={audioElRef} src={AUDIO_SRC} defaultMuted muted autoPlay loop playsInline preload="auto"
+      <audio ref={audioElRef} src={AUDIO_SRC} defaultMuted autoPlay loop playsInline preload="auto"
              style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none', left: 0, top: 0 }} />
       <video ref={noSleepVideoRef} playsInline muted loop preload="auto" style={{ width: 1, height: 1, opacity: 0, position: 'absolute', left: -9999, top: -9999 }}>
         <source src="data:video/mp4;base64,AAAAIGZ0eXBtcDQyAAAAAG1wNDFtcDQyaXNvbWF2YzEAAAAIZnJlZQAABG1kYXQAAAAAAA==" type="video/mp4" />
