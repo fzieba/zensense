@@ -85,7 +85,10 @@ export default function App() {
   // --- Background music (loops forever, resilient) ---
   useEffect(() => {
     let a = audioElRef.current;
-    if (!a) a = new Audio();
+    if (!a) {
+      a = new Audio();
+      audioElRef.current = a; // ensure we keep the same element across renders
+    }
     a.src = AUDIO_SRC;
     a.preload = 'auto';
     a.loop = true;
@@ -129,6 +132,7 @@ export default function App() {
     }, 30000);
 
     try { a.load(); } catch {}
+    // Try to start muted (allowed by autoplay policies)
     a.play().catch(() => {});
 
     return () => {
@@ -136,6 +140,7 @@ export default function App() {
       try { a.removeEventListener('ended', onEnded); } catch {}
       document.removeEventListener('visibilitychange', onVis);
       try { clearInterval(watch); } catch {}
+      // keep the element instance in ref for future mounts; just detach our reference
       bgAudioRef.current = null;
     };
   }, [AUDIO_SRC, muted, running]);
@@ -143,7 +148,7 @@ export default function App() {
   // --- Site mute toggle (does not affect bell) ---
   const setMutedState = (next) => {
     setMuted(next);
-    const a = bgAudioRef.current; if (!a) return;
+    const a = bgAudioRef.current || audioElRef.current; if (!a) return;
     try {
       if (next) {
         if (document.hidden && running) { a.muted = false; a.volume = QUIET_VOL; }
