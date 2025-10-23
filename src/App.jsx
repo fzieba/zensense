@@ -142,6 +142,11 @@ export default function App() {
         const onCanPlay = () => { const p = a.play(); if (p && p.catch) p.catch(() => {}); };
         a.addEventListener('canplaythrough', onCanPlay, { once: true });
 
+        // Prime playback on the very first user interaction so unmute works on the first tap
+        const prime = () => { try { a.muted = true; a.setAttribute('muted',''); } catch {} const p = a.play(); if (p && p.catch) p.catch(() => {}); document.removeEventListener('pointerdown', prime); document.removeEventListener('touchstart', prime); };
+        document.addEventListener('pointerdown', prime, { once: true, passive: true });
+        document.addEventListener('touchstart', prime, { once: true, passive: true });
+
         try { a.load(); } catch {}
         a.play().catch(() => {});
 
@@ -169,14 +174,9 @@ export default function App() {
         else { a.volume = TARGET_VOL; a.muted = true; }
       } else { a.volume = TARGET_VOL; a.muted = false; try { a.removeAttribute('muted'); } catch {} }
     } catch {}
+    // Ensure playback is running; if it fails here, the prime-on-pointerdown handler will have already started it
     if (!next) {
-      const p = a.play();
-      if (p && typeof p.catch === 'function') {
-        p.catch(() => {
-          const resume = () => a.play().catch(() => {});
-          window.addEventListener('pointerup', resume, { once: true });
-        });
-      }
+      const p = a.play(); if (p && p.catch) p.catch(() => {});
     }
   };
   const toggleMute = () => setMutedState(!muted);
