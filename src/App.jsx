@@ -31,7 +31,9 @@ export default function App() {
   const audioElRef = useRef(null);        // background music <audio>
   const bellAudioRef = useRef(null);      // HTMLAudio bell fallback (iOS safe)
   const bellCtxRef = useRef(null);        // WebAudio for bell (desktop/Android)
-  const bellBufferRef = useRef(null);     // decoded bell buffer
+  const bellBufferRef = useRef(null);
+  const wakeLockRef = useRef(null);
+  const noSleepVideoRef = useRef(null);
   const anchorMsRef = useRef(null);      // when running, Date.now() anchor
   const offsetMsRef = useRef(0);         // accumulated ms across runs/pauses
   const lastBellCountRef = useRef(0);    // how many bells have fired based on elapsed time     // next bell wall‑clock time
@@ -140,6 +142,40 @@ export default function App() {
     return () => { if (id) clearInterval(id); };
   }, [running, bellInterval, elapsed]);
 
+  // ---- Keep screen awake while running & tab visible ----
+  const requestWakeLock = async () => {
+    try {
+      if (navigator.wakeLock && navigator.wakeLock.request) {
+        try { await wakeLockRef.current?.release?.(); } catch {}
+        wakeLockRef.current = await navigator.wakeLock.request('screen');
+      }
+    } catch { /* ignore */ }
+  };
+  const releaseWakeLock = async () => {
+    try { await wakeLockRef.current?.release?.(); } catch {}
+    wakeLockRef.current = null;
+  };
+  const ensureNoSleepVideo = () => {
+    const v = noSleepVideoRef.current; if (!v) return;
+    try { v.muted = true; v.loop = true; v.setAttribute('playsinline',''); } catch {}
+    const p = v.play(); if (p && p.catch) p.catch(() => {});
+  };
+
+  useEffect(() => {
+    const syncWake = () => {
+      if (document.visibilityState === 'visible' && runningRef.current) {
+        requestWakeLock();
+        ensureNoSleepVideo();
+      } else {
+        releaseWakeLock();
+        try { noSleepVideoRef.current?.pause?.(); } catch {}
+      }
+    };
+    document.addEventListener('visibilitychange', syncWake);
+    syncWake();
+    return () => document.removeEventListener('visibilitychange', syncWake);
+  }, []);
+
   // ---- Controls ----
   const start = () => {
     const firstStart = !hasStartedRef.current;
@@ -163,6 +199,10 @@ export default function App() {
       setMuted(false);
       userMuteLockedRef.current = false;
     }
+
+    // Keep screen awake while running & visible
+    requestWakeLock();
+    ensureNoSleepVideo();
   };
 
   const pause = () => {
@@ -173,6 +213,9 @@ export default function App() {
       anchorMsRef.current = null; // clear anchor while paused
     }
     setRunning(false); runningRef.current = false;
+    // release wake and pause helper video
+    releaseWakeLock();
+    try { noSleepVideoRef.current?.pause?.(); } catch {}
   };
 
   const reset = () => {
@@ -180,6 +223,9 @@ export default function App() {
     setElapsed(0); setShowTimer(false); setHasStarted(false); hasStartedRef.current = false;
     // clear timing
     anchorMsRef.current = null; offsetMsRef.current = 0; lastBellCountRef.current = 0;
+    // release wake and pause helper video
+    releaseWakeLock();
+    try { noSleepVideoRef.current?.pause?.(); } catch {}
   };
 
   const toggleMute = () => {
@@ -239,7 +285,7 @@ export default function App() {
       <section className="core">
         <header style={{ textAlign: 'center' }}>
           <img src="Zensense_Text_Only.png" alt="ZenSense Logo" style={{ width: 163, maxWidth: '40vw', margin: '0 auto', filter: 'brightness(0) invert(1)' }} />
-          <p style={{ fontSize: '1rem', opacity: 0.7, marginTop: '1.25rem', letterSpacing: '0.3px', maxWidth: 860, width: '92%', marginLeft: 'auto', marginRight: 'auto' }}>
+          <p style={{ fontSize: '1rem', opacity: 0.7, marginTop: '1.25rem', letterSpacing: '0.3px', display: 'inline-block', maxWidth: '92vw', marginLeft: 'auto', marginRight: 'auto' }}>
             Your ultra-minimal focus timer for meditation & productivity.
           </p>
         </header>
@@ -284,7 +330,7 @@ export default function App() {
       <footer>No tracking, no sign-in. Just peace.</footer>
 
       {/* Hidden tiny video to keep iOS awake once user interacts via START (we don't auto-play it) */}
-      <video id="nosleep" ref={el => null} playsInline muted loop preload="auto" style={{ width: 1, height: 1, opacity: 0, position: 'absolute', left: -9999, top: -9999 }} />
+      <video id="nosleep" ref={noSleepVideoRef} playsInline muted loop preload="auto" style={{ width: 1, height: 1, opacity: 0, position: 'absolute', left: -9999, top: -9999 }} />
     </div>
   );
 }
