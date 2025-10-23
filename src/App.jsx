@@ -32,8 +32,9 @@ export default function App() {
   const bellAudioRef = useRef(null);      // HTMLAudio bell fallback (iOS safe)
   const bellCtxRef = useRef(null);        // WebAudio for bell (desktop/Android)
   const bellBufferRef = useRef(null);     // decoded bell buffer
-  const startMsRef = useRef(null);        // wall‑clock anchor
-  const nextBellMsRef = useRef(null);     // next bell wall‑clock time
+  const anchorMsRef = useRef(null);      // when running, Date.now() anchor
+  const offsetMsRef = useRef(0);         // accumulated ms across runs/pauses
+  const lastBellCountRef = useRef(0);    // how many bells have fired based on elapsed time     // next bell wall‑clock time
 
   // ---- Constants ----
   const TARGET_VOL = 0.18;
@@ -114,23 +115,24 @@ export default function App() {
     return () => { abort = true; };
   }, [BELL_SRC]);
 
-  // ---- Timer & bell scheduler (wall‑clock based) ----
+  // ---- Timer & bell scheduler (wall‑clock anchored but pause‑aware) ----
   useEffect(() => {
     let id;
     const tick = () => {
       if (!runningRef.current) return;
       const now = Date.now();
-      if (startMsRef.current == null) startMsRef.current = now - elapsed * 1000;
-      const secs = Math.max(0, Math.floor((now - startMsRef.current) / 1000));
+      if (anchorMsRef.current == null) anchorMsRef.current = now; // safety
+      const elapsedMs = offsetMsRef.current + (now - anchorMsRef.current);
+      const secs = Math.max(0, Math.floor(elapsedMs / 1000));
       if (secs !== elapsed) setElapsed(secs);
 
+      // Bell scheduling based on elapsed timer time (respects pause).
       const period = bellInterval * 60000; // ms
       if (period > 0) {
-        if (!nextBellMsRef.current) nextBellMsRef.current = now + period;
-        if (now >= nextBellMsRef.current) {
+        const countNow = Math.floor(elapsedMs / period);
+        if (countNow > lastBellCountRef.current) {
           playBell();
-          const missed = Math.max(1, Math.floor((now - nextBellMsRef.current) / period) + 1);
-          nextBellMsRef.current += missed * period;
+          lastBellCountRef.current = countNow;
         }
       }
     };
@@ -141,9 +143,18 @@ export default function App() {
   // ---- Controls ----
   const start = () => {
     const firstStart = !hasStartedRef.current;
-    setRunning(true); setShowTimer(true); setHasStarted(true); hasStartedRef.current = true;
+    // set anchors for pause-aware timing
+    const now = Date.now();
+    if (!runningRef.current) {
+      if (anchorMsRef.current == null) anchorMsRef.current = now;
+    }
+    setRunning(true); runningRef.current = true;
+    setShowTimer(true); setHasStarted(true); hasStartedRef.current = true;
 
-    if (firstStart) playBell();
+    if (firstStart) {
+      lastBellCountRef.current = 0; // reset bell counter for new session
+      playBell();
+    }
 
     // First START always unmutes music unless user muted after starting
     const a = audioElRef.current;
@@ -154,11 +165,21 @@ export default function App() {
     }
   };
 
-  const pause = () => { setRunning(false); };
+  const pause = () => {
+    if (!runningRef.current) return;
+    const now = Date.now();
+    if (anchorMsRef.current != null) {
+      offsetMsRef.current += (now - anchorMsRef.current);
+      anchorMsRef.current = null; // clear anchor while paused
+    }
+    setRunning(false); runningRef.current = false;
+  };
 
   const reset = () => {
-    setRunning(false); setElapsed(0); setShowTimer(false); setHasStarted(false);
-    startMsRef.current = null; nextBellMsRef.current = null;
+    setRunning(false); runningRef.current = false;
+    setElapsed(0); setShowTimer(false); setHasStarted(false); hasStartedRef.current = false;
+    // clear timing
+    anchorMsRef.current = null; offsetMsRef.current = 0; lastBellCountRef.current = 0;
   };
 
   const toggleMute = () => {
