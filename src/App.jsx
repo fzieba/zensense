@@ -84,65 +84,81 @@ export default function App() {
 
   // --- Background music (loops forever, resilient) ---
   useEffect(() => {
-    let a = audioElRef.current;
-    if (!a) {
-      a = new Audio();
-      audioElRef.current = a; // ensure we keep the same element across renders
-    }
-    a.src = AUDIO_SRC;
-    a.preload = 'auto';
-    a.loop = true;
-    a.volume = TARGET_VOL;
-    a.muted = true; // start muted to satisfy autoplay policies
-    bgAudioRef.current = a;
+    let cancelled = false;
 
-    const onEnded = () => {
-      try { a.currentTime = 0; } catch {}
-      const p = a.play(); if (p && p.catch) p.catch(() => {});
-    };
-    a.addEventListener('ended', onEnded);
+    const init = () => {
+      if (cancelled) return;
+      const a = audioElRef.current; // **use the real <audio> element in the DOM**
+      if (!a) {
+        // Ref may not be ready on the very first effect tick — try again next frame
+        requestAnimationFrame(init);
+        return;
+      }
+      // Wire once
+      if (bgAudioRef.current !== a) {
+        bgAudioRef.current = a;
 
-    const onVis = () => {
-      const a2 = a;
-      if (!a2) return;
-      if (!document.hidden) {
-        if (!muted) { a2.volume = TARGET_VOL; a2.muted = false; const p = a2.play(); if (p && p.catch) p.catch(() => {}); }
-        else { a2.volume = TARGET_VOL; a2.muted = true; }
-      } else {
-        if (muted && running) { a2.muted = false; a2.volume = QUIET_VOL; }
+        a.src = AUDIO_SRC;
+        a.preload = 'auto';
+        a.loop = true;
+        a.volume = TARGET_VOL;
+        a.muted = true; // start muted to satisfy autoplay policies
+
+        const onEnded = () => {
+          try { a.currentTime = 0; } catch {}
+          const p = a.play(); if (p && p.catch) p.catch(() => {});
+        };
+        a.addEventListener('ended', onEnded);
+
+        const onVis = () => {
+          if (!audioElRef.current) return;
+          if (!document.hidden) {
+            if (!muted) { a.volume = TARGET_VOL; a.muted = false; const p = a.play(); if (p && p.catch) p.catch(() => {}); }
+            else { a.volume = TARGET_VOL; a.muted = true; }
+          } else {
+            if (muted && running) { a.muted = false; a.volume = QUIET_VOL; }
+          }
+        };
+        document.addEventListener('visibilitychange', onVis);
+
+        // Watchdog: keep audio/contexts alive during long sessions
+        const watch = setInterval(() => {
+          const aW = audioElRef.current;
+          if (!aW) return;
+          if (running) {
+            if (document.hidden && muted) { try { aW.muted = false; aW.volume = QUIET_VOL; } catch {} }
+            if (!muted) { try { aW.volume = TARGET_VOL; aW.muted = false; } catch {} }
+          }
+          if (!muted && running) {
+            const t = aW.currentTime || 0;
+            const dt = Math.abs(t - (audioWatchRef.current.lastT || 0));
+            audioWatchRef.current.lastT = t;
+            if (aW.paused || aW.ended || dt < 0.5) { const p = aW.play(); if (p && p.catch) p.catch(() => {}); }
+          }
+          const ctx = bellCtxRef.current; if (ctx && ctx.state === 'suspended' && running) { try { ctx.resume(); } catch {} }
+        }, 30000);
+
+        // Nudge playback when ready
+        const onCanPlay = () => { const p = a.play(); if (p && p.catch) p.catch(() => {}); };
+        a.addEventListener('canplaythrough', onCanPlay, { once: true });
+
+        // First attempt (muted autoplay)
+        try { a.load(); } catch {}
+        a.play().catch(() => {});
+
+        // Cleanup when component unmounts
+        return () => {
+          try { a.pause(); } catch {}
+          try { a.removeEventListener('ended', onEnded); } catch {}
+          try { a.removeEventListener('canplaythrough', onCanPlay); } catch {}
+          document.removeEventListener('visibilitychange', onVis);
+          try { clearInterval(watch); } catch {}
+        };
       }
     };
-    document.addEventListener('visibilitychange', onVis);
 
-    // Watchdog to keep audio/contexts alive during long sessions
-    const watch = setInterval(() => {
-      const aW = bgAudioRef.current;
-      if (!aW) return;
-      if (running) {
-        if (document.hidden && muted) { try { aW.muted = false; aW.volume = QUIET_VOL; } catch {} }
-        if (!muted) { try { aW.volume = TARGET_VOL; aW.muted = false; } catch {} }
-      }
-      if (!muted && running) {
-        const t = aW.currentTime || 0;
-        const dt = Math.abs(t - (audioWatchRef.current.lastT || 0));
-        audioWatchRef.current.lastT = t;
-        if (aW.paused || aW.ended || dt < 0.5) { const p = aW.play(); if (p && p.catch) p.catch(() => {}); }
-      }
-      const ctx = bellCtxRef.current; if (ctx && ctx.state === 'suspended' && running) { try { ctx.resume(); } catch {} }
-    }, 30000);
-
-    try { a.load(); } catch {}
-    // Try to start muted (allowed by autoplay policies)
-    a.play().catch(() => {});
-
-    return () => {
-      try { a.pause(); } catch {}
-      try { a.removeEventListener('ended', onEnded); } catch {}
-      document.removeEventListener('visibilitychange', onVis);
-      try { clearInterval(watch); } catch {}
-      // keep the element instance in ref for future mounts; just detach our reference
-      bgAudioRef.current = null;
-    };
+    const cleanup = init();
+    return () => { cancelled = true; if (typeof cleanup === 'function') cleanup(); };
   }, [AUDIO_SRC, muted, running]);
 
   // --- Site mute toggle (does not affect bell) ---
