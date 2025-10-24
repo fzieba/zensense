@@ -38,6 +38,11 @@ export default function App() {
   const offsetMsRef = useRef(0);         // accumulated ms across runs/pauses
   const lastBellCountRef = useRef(0);    // how many bells have fired based on elapsed time     // next bell wall‑clock time
 
+  // --- Mobile dim mode (optional) ---
+  const [dimMobileEnabled, setDimMobileEnabled] = useState(true);
+  const [dimActive, setDimActive] = useState(false);
+  const dimTimerRef = useRef(null);
+
   // ---- Constants ----
   const TARGET_VOL = 0.18;
   const QUIET_VOL = 0.0001;               // keep‑alive when hidden + muted
@@ -48,7 +53,14 @@ export default function App() {
 
   // ---- Bell playback (never muted) ----
   const playBell = () => {
-    // Try WebAudio first
+    // On iOS, prefer HTMLAudio path (most reliable under WebKit policies)
+    if (isIOS && bellAudioRef.current) {
+      const b = bellAudioRef.current;
+      try { b.muted = false; b.volume = 0.9; b.currentTime = 0; } catch {}
+      const p = b.play(); if (p && p.catch) p.catch(() => {});
+      return;
+    }
+    // Try WebAudio first for others
     const ctx = bellCtxRef.current;
     const buf = bellBufferRef.current;
     if (ctx && buf) {
@@ -162,22 +174,46 @@ export default function App() {
   };
 
   useEffect(() => {
+    const isMobile = () => window.matchMedia && window.matchMedia('(max-width: 680px)').matches;
+
     const syncWake = () => {
       if (document.visibilityState === 'visible' && runningRef.current) {
         requestWakeLock();
         ensureNoSleepVideo();
+        if (isMobile() && dimMobileEnabled) setDimActive(true);
       } else {
         releaseWakeLock();
         try { noSleepVideoRef.current?.pause?.(); } catch {}
+        setDimActive(false);
       }
     };
+
+    const nudgeUndim = () => {
+      // Any interaction temporarily undims; re-dim after 15s if still eligible
+      if (dimActive) setDimActive(false);
+      if (dimTimerRef.current) clearTimeout(dimTimerRef.current);
+      dimTimerRef.current = setTimeout(() => {
+        const mobile = window.matchMedia && window.matchMedia('(max-width: 680px)').matches;
+        if (document.visibilityState === 'visible' && runningRef.current && dimMobileEnabled && mobile) {
+          setDimActive(true);
+        }
+      }, 15000);
+    };
+
     document.addEventListener('visibilitychange', syncWake);
+    window.addEventListener('pointerdown', nudgeUndim, { passive: true });
+    window.addEventListener('keydown', nudgeUndim);
     syncWake();
-    return () => document.removeEventListener('visibilitychange', syncWake);
-  }, []);
+    return () => {
+      document.removeEventListener('visibilitychange', syncWake);
+      window.removeEventListener('pointerdown', nudgeUndim);
+      window.removeEventListener('keydown', nudgeUndim);
+      if (dimTimerRef.current) clearTimeout(dimTimerRef.current);
+    };
+  }, [dimMobileEnabled, dimActive]);
 
   // ---- Controls ----
-  const start = () => {
+  const start = async () => {
     const firstStart = !hasStartedRef.current;
     // set anchors for pause-aware timing
     const now = Date.now();
@@ -189,6 +225,30 @@ export default function App() {
 
     if (firstStart) {
       lastBellCountRef.current = 0; // reset bell counter for new session
+      // Prime audio unlocks inside the user gesture
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) {
+          if (!bellCtxRef.current || bellCtxRef.current.state === 'closed') {
+            bellCtxRef.current = new AC();
+          }
+          if (bellCtxRef.current.state !== 'running') {
+            await bellCtxRef.current.resume().catch(() => {});
+          }
+        }
+      } catch {}
+      // iOS HTMLAudio prime: play at volume 0 once, then pause/reset
+      if (isIOS && bellAudioRef.current) {
+        try {
+          const b = bellAudioRef.current;
+          const pv = b.volume;
+          b.volume = 0;
+          const p = b.play(); if (p && p.catch) await p.catch(() => {});
+          try { b.pause(); } catch {}
+          b.currentTime = 0;
+          b.volume = pv;
+        } catch {}
+      }
       playBell();
     }
 
@@ -271,13 +331,17 @@ export default function App() {
         * { box-sizing: border-box; }
         img { display: block; max-width: 100%; }
         body, p, span, div, select, button, footer { font-family: 'Helvetica Neue', Arial, sans-serif; }
-        .page { min-height: 100vh; height: 100svh; display: flex; flex-direction: column; }
+        .page { min-height: 100vh; height: 100svh; display: flex; flex-direction: column; position: relative; }
         .core { flex: 1; width: min(920px, 92vw); margin: 0 auto; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4vh; padding: 6vh 1rem 0; }
         footer { margin-top: auto; text-align: center; padding: 16px 0; opacity: 0.7; font-size: 12px; }
+        /* Dim overlay + toggle */
+        .dim-toggle { display: none; }
+        .dim-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); pointer-events: none; transition: opacity 200ms ease; }
         @media (max-width: 680px) {
           html, body, #root, .page { height: auto; min-height: 100svh; }
           .page { overflow-x: hidden; overflow-y: auto; }
           .core { padding: 8vh 1rem 120px; justify-content: flex-start; }
+          .dim-toggle { display: block; }
         }
       `}</style>
 
@@ -324,11 +388,20 @@ export default function App() {
             </AnimatePresence>
           </div>
         </main>
+        {/* Mobile dim setting (shown only on small screens) */}
+        <div className="dim-toggle" style={{ marginTop: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <input type="checkbox" checked={dimMobileEnabled} onChange={(e) => setDimMobileEnabled(e.target.checked)} />
+            Dim screen while running (mobile)
+          </label>
+        </div>
       </section>
 
       {/* Footer */}
       <footer>No tracking, no sign-in. Just peace.</footer>
 
+      {/* Hidden tiny video to keep iOS awake once user interacts via START (we don't auto-play it) */}
+      {dimActive && <div className="dim-overlay" />}
       {/* Hidden tiny video to keep iOS awake once user interacts via START (we don't auto-play it) */}
       <video id="nosleep" ref={noSleepVideoRef} playsInline muted loop preload="auto" style={{ width: 1, height: 1, opacity: 0, position: 'absolute', left: -9999, top: -9999 }} />
     </div>
