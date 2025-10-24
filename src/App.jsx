@@ -53,7 +53,14 @@ export default function App() {
 
   // ---- Bell playback (never muted) ----
   const playBell = () => {
-    // Always try WebAudio first — even on iOS — as it can bypass ringer mute on modern Safari once unlocked
+    // On iOS, HTMLAudio path is the most reliable. Else prefer WebAudio.
+    if (isIOS && bellAudioRef.current) {
+      const b = bellAudioRef.current;
+      try { b.muted = false; b.volume = 1; b.currentTime = 0; } catch {}
+      const p = b.play(); if (p && p.catch) p.catch(() => {});
+      return;
+    }
+    // WebAudio first for non‑iOS
     const ctx = bellCtxRef.current;
     const buf = bellBufferRef.current;
     if (ctx && buf) {
@@ -66,24 +73,23 @@ export default function App() {
         src.connect(g); g.connect(ctx.destination);
         src.start();
         src.onended = () => { try { src.disconnect(); g.disconnect(); } catch {} };
-        return; // success via WebAudio
+        return;
       } catch {}
     }
-    // Fallback: HTMLAudio element. Ensure it is audible regardless of background music mute.
+    // Fallback: HTMLAudio element (ensure not muted)
     const b = bellAudioRef.current;
     if (b) {
       try { b.muted = false; b.volume = 1; b.currentTime = 0; } catch {}
       const p = b.play(); if (p && p.catch) p.catch(() => {});
       return;
     }
-    // Last‑chance: construct and play an ephemeral element (in case ref was GC’d)
+    // Last chance: ephemeral element
     try {
       const ep = new Audio(BELL_SRC);
       ep.preload = 'auto'; ep.loop = false; ep.volume = 1; ep.muted = false;
       const p = ep.play(); if (p && p.catch) p.catch(() => {});
     } catch {}
   };
-  
 
   // ---- Background music element: autoplay muted & loop (mount once) ----
   useEffect(() => {
@@ -117,10 +123,9 @@ export default function App() {
 
   // ---- Preload bell (HTMLAudio + WebAudio buffer) ----
   useEffect(() => {
-    // HTMLAudio bell (iOS safe)
+    // Ensure the bell <audio> element is wired with source and ready
     try {
-      let b = bellAudioRef.current; if (!b) { b = new Audio(); bellAudioRef.current = b; }
-      b.src = BELL_SRC; b.preload = 'auto'; b.loop = false; b.volume = 1; b.load();
+      const b = bellAudioRef.current; if (b) { b.src = BELL_SRC; b.preload = 'auto'; b.loop = false; b.volume = 1; b.load(); }
     } catch {}
 
     // WebAudio
@@ -131,11 +136,10 @@ export default function App() {
       try {
         const res = await fetch(BELL_SRC, { cache: 'force-cache' });
         const arr = await res.arrayBuffer(); if (abort) return;
-        // Some Safari versions prefer callback form — wrap in Promise.race with timeout to avoid hanging
+        // Safari compatibility: support callback and promise forms
         const decoded = await new Promise((resolve, reject) => {
           let settled = false;
           ctx.decodeAudioData(arr, (buf) => { if (!settled) { settled = true; resolve(buf); } }, (e) => { if (!settled) { settled = true; reject(e); } });
-          // Fallback: try promise if callback path fails synchronously
           setTimeout(async () => { if (!settled && ctx.decodeAudioData.length === 1) { try { const buf = await ctx.decodeAudioData(arr); settled = true; resolve(buf); } catch (e) { settled = true; reject(e); } } }, 0);
         });
         if (!abort) bellBufferRef.current = decoded;
@@ -251,7 +255,14 @@ export default function App() {
 
     if (firstStart) {
       lastBellCountRef.current = 0; // reset bell counter for new session
-      // iOS HTMLAudio prime at volume 0 once, then pause/reset (gesture‑unlocked)
+      // Prime both audio systems inside the user gesture
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (AC) {
+          if (!bellCtxRef.current || bellCtxRef.current.state === 'closed') bellCtxRef.current = new AC();
+          if (bellCtxRef.current.state !== 'running') await bellCtxRef.current.resume().catch(() => {});
+        }
+      } catch {}
       if (isIOS && bellAudioRef.current) {
         try {
           const b = bellAudioRef.current; const pv = b.volume;
@@ -333,6 +344,8 @@ export default function App() {
 
       {/* Hidden media elements */}
       <audio ref={audioElRef} src={AUDIO_SRC} defaultMuted autoPlay loop playsInline preload="auto"
+             style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none', left: 0, top: 0 }} />
+      <audio ref={bellAudioRef} src={BELL_SRC} preload="auto"
              style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none', left: 0, top: 0 }} />
 
       {/* Layout styles */}
