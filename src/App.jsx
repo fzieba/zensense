@@ -53,35 +53,37 @@ export default function App() {
 
   // ---- Bell playback (never muted) ----
   const playBell = () => {
-    // On iOS, prefer HTMLAudio path (most reliable under WebKit policies)
-    if (isIOS && bellAudioRef.current) {
-      const b = bellAudioRef.current;
-      try { b.muted = false; b.volume = 0.9; b.currentTime = 0; } catch {}
-      const p = b.play(); if (p && p.catch) p.catch(() => {});
-      return;
-    }
-    // Try WebAudio first for others
+    // Always try WebAudio first — even on iOS — as it can bypass ringer mute on modern Safari once unlocked
     const ctx = bellCtxRef.current;
     const buf = bellBufferRef.current;
     if (ctx && buf) {
       try {
-        if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+        if (ctx.state !== 'running') { ctx.resume().catch(() => {}); }
         const src = ctx.createBufferSource();
         const g = ctx.createGain();
         g.gain.setValueAtTime(1, ctx.currentTime);
-        src.buffer = buf; src.connect(g); g.connect(ctx.destination);
+        src.buffer = buf;
+        src.connect(g); g.connect(ctx.destination);
         src.start();
         src.onended = () => { try { src.disconnect(); g.disconnect(); } catch {} };
-        return;
+        return; // success via WebAudio
       } catch {}
     }
-    // Fallback: HTMLAudio (ensure not muted)
+    // Fallback: HTMLAudio element. Ensure it is audible regardless of background music mute.
     const b = bellAudioRef.current;
     if (b) {
-      try { b.muted = false; b.volume = 0.9; b.currentTime = 0; } catch {}
+      try { b.muted = false; b.volume = 1; b.currentTime = 0; } catch {}
       const p = b.play(); if (p && p.catch) p.catch(() => {});
+      return;
     }
+    // Last‑chance: construct and play an ephemeral element (in case ref was GC’d)
+    try {
+      const ep = new Audio(BELL_SRC);
+      ep.preload = 'auto'; ep.loop = false; ep.volume = 1; ep.muted = false;
+      const p = ep.play(); if (p && p.catch) p.catch(() => {});
+    } catch {}
   };
+  
 
   // ---- Background music element: autoplay muted & loop (mount once) ----
   useEffect(() => {
@@ -118,14 +120,27 @@ export default function App() {
     // HTMLAudio bell (iOS safe)
     try {
       let b = bellAudioRef.current; if (!b) { b = new Audio(); bellAudioRef.current = b; }
-      b.src = BELL_SRC; b.preload = 'auto'; b.loop = false; b.volume = 0.9; b.load();
+      b.src = BELL_SRC; b.preload = 'auto'; b.loop = false; b.volume = 1; b.load();
     } catch {}
 
     // WebAudio
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     const ctx = bellCtxRef.current || new AC(); bellCtxRef.current = ctx;
     let abort = false;
-    (async () => { try { const res = await fetch(BELL_SRC, { cache: 'force-cache' }); const arr = await res.arrayBuffer(); if (abort) return; const buf = await ctx.decodeAudioData(arr); if (!abort) bellBufferRef.current = buf; } catch {} })();
+    (async () => {
+      try {
+        const res = await fetch(BELL_SRC, { cache: 'force-cache' });
+        const arr = await res.arrayBuffer(); if (abort) return;
+        // Some Safari versions prefer callback form — wrap in Promise.race with timeout to avoid hanging
+        const decoded = await new Promise((resolve, reject) => {
+          let settled = false;
+          ctx.decodeAudioData(arr, (buf) => { if (!settled) { settled = true; resolve(buf); } }, (e) => { if (!settled) { settled = true; reject(e); } });
+          // Fallback: try promise if callback path fails synchronously
+          setTimeout(async () => { if (!settled && ctx.decodeAudioData.length === 1) { try { const buf = await ctx.decodeAudioData(arr); settled = true; resolve(buf); } catch (e) { settled = true; reject(e); } } }, 0);
+        });
+        if (!abort) bellBufferRef.current = decoded;
+      } catch {}
+    })();
     return () => { abort = true; };
   }, [BELL_SRC]);
 
@@ -145,6 +160,8 @@ export default function App() {
       if (period > 0) {
         const countNow = Math.floor(elapsedMs / period);
         if (countNow > lastBellCountRef.current) {
+          // Proactively resume context each time to avoid long‑idle suspension on some mobile browsers
+          try { bellCtxRef.current && bellCtxRef.current.resume && bellCtxRef.current.resume(); } catch {}
           playBell();
           lastBellCountRef.current = countNow;
         }
@@ -223,30 +240,23 @@ export default function App() {
     setRunning(true); runningRef.current = true;
     setShowTimer(true); setHasStarted(true); hasStartedRef.current = true;
 
+    // (Re)unlock audio each start/resume — some browsers suspend after long idle
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) {
+        if (!bellCtxRef.current || bellCtxRef.current.state === 'closed') bellCtxRef.current = new AC();
+        if (bellCtxRef.current.state !== 'running') await bellCtxRef.current.resume().catch(() => {});
+      }
+    } catch {}
+
     if (firstStart) {
       lastBellCountRef.current = 0; // reset bell counter for new session
-      // Prime audio unlocks inside the user gesture
-      try {
-        const AC = window.AudioContext || window.webkitAudioContext;
-        if (AC) {
-          if (!bellCtxRef.current || bellCtxRef.current.state === 'closed') {
-            bellCtxRef.current = new AC();
-          }
-          if (bellCtxRef.current.state !== 'running') {
-            await bellCtxRef.current.resume().catch(() => {});
-          }
-        }
-      } catch {}
-      // iOS HTMLAudio prime: play at volume 0 once, then pause/reset
+      // iOS HTMLAudio prime at volume 0 once, then pause/reset (gesture‑unlocked)
       if (isIOS && bellAudioRef.current) {
         try {
-          const b = bellAudioRef.current;
-          const pv = b.volume;
-          b.volume = 0;
-          const p = b.play(); if (p && p.catch) await p.catch(() => {});
-          try { b.pause(); } catch {}
-          b.currentTime = 0;
-          b.volume = pv;
+          const b = bellAudioRef.current; const pv = b.volume;
+          b.volume = 0; const p = b.play(); if (p && p.catch) await p.catch(() => {});
+          try { b.pause(); } catch {} b.currentTime = 0; b.volume = pv;
         } catch {}
       }
       playBell();
