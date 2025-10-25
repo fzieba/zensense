@@ -39,7 +39,6 @@ export default function App() {
   const lastBellCountRef = useRef(0);    // how many bells have fired based on elapsed time     // next bell wall‑clock time
 
   // --- Mobile dim mode (optional) ---
-  const [dimMobileEnabled, setDimMobileEnabled] = useState(true);
   const [dimActive, setDimActive] = useState(false);
   const dimTimerRef = useRef(null);
 
@@ -201,7 +200,7 @@ export default function App() {
       if (document.visibilityState === 'visible' && runningRef.current) {
         requestWakeLock();
         ensureNoSleepVideo();
-        if (isMobile() && dimMobileEnabled) setDimActive(true);
+        if (isMobile()) setDimActive(true);
       } else {
         releaseWakeLock();
         try { noSleepVideoRef.current?.pause?.(); } catch {}
@@ -215,7 +214,7 @@ export default function App() {
       if (dimTimerRef.current) clearTimeout(dimTimerRef.current);
       dimTimerRef.current = setTimeout(() => {
         const mobile = window.matchMedia && window.matchMedia('(max-width: 680px)').matches;
-        if (document.visibilityState === 'visible' && runningRef.current && dimMobileEnabled && mobile) {
+        if (document.visibilityState === 'visible' && runningRef.current && mobile) {
           setDimActive(true);
         }
       }, 15000);
@@ -231,7 +230,7 @@ export default function App() {
       window.removeEventListener('keydown', nudgeUndim);
       if (dimTimerRef.current) clearTimeout(dimTimerRef.current);
     };
-  }, [dimMobileEnabled, dimActive]);
+  }, [dimActive]);
 
   // ---- Controls ----
   const start = async () => {
@@ -412,12 +411,7 @@ export default function App() {
           </div>
         </main>
         {/* Mobile dim setting (shown only on small screens) */}
-        <div className="dim-toggle" style={{ marginTop: '0.5rem', fontSize: '0.9rem', opacity: 0.8 }}>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <input type="checkbox" checked={dimMobileEnabled} onChange={(e) => setDimMobileEnabled(e.target.checked)} />
-            Dim screen while running (mobile)
-          </label>
-        </div>
+        
       </section>
 
       {/* Footer */}
