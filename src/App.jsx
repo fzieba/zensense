@@ -322,8 +322,12 @@ export default function App() {
   };
 
   // ---- Derived display ----
-  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
-  const ss = String(elapsed % 60).padStart(2, '0');
+  const hours = Math.floor(elapsed / 3600);
+  const minutes = Math.floor((elapsed % 3600) / 60);
+  const seconds = elapsed % 60;
+  const timeText = hours > 0
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    : `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   const buttonLabel = running ? 'PAUSE' : hasStarted ? 'RESUME' : 'START';
   const buttonAction = running ? pause : start;
   const buttonColor = running ? 'rgba(34,197,94,0.7)' : 'rgba(56,189,248,0.7)';
@@ -401,7 +405,7 @@ export default function App() {
             <AnimatePresence initial={false}>
               {showTimer && (
                 <motion.div key="timer" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.5 }}
-                  style={{ fontSize: '3rem', fontWeight: 700, marginTop: '0.5rem' }} aria-live="polite">{`${mm}:${ss}`}</motion.div>
+                  style={{ fontSize: '3.4rem', fontWeight: 700, marginTop: '0.5rem' }} aria-live="polite">{timeText}</motion.div>
               )}
               {showTimer && (
                 <motion.button key="reset" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4, delay: 0.1 }} onClick={reset}
